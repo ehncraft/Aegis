@@ -120,7 +120,7 @@ internal sealed class Parser
         }
     }
 
-    private Expr ParseMember()
+    private MemberExpr ParseMember()
     {
         var path = new List<string> { Expect(TokenType.Identifier, "identifier").Text };
         while (Current.Type == TokenType.Dot)

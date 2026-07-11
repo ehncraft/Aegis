@@ -12,9 +12,9 @@ public sealed class AegisPrincipal
 
     public static AegisPrincipal Create(string id, IEnumerable<string>? roles = null,
         IReadOnlyDictionary<string, object?>? attributes = null) => new()
-    {
-        Id = id,
-        Roles = roles?.ToArray() ?? Array.Empty<string>(),
-        Attributes = attributes ?? new Dictionary<string, object?>(),
-    };
+        {
+            Id = id,
+            Roles = roles?.ToArray() ?? Array.Empty<string>(),
+            Attributes = attributes ?? new Dictionary<string, object?>(),
+        };
 }

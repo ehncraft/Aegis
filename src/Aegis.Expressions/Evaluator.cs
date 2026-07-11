@@ -16,7 +16,7 @@ internal static class Evaluator
             ? value
             : null;
 
-    private static object? EvaluateUnary(UnaryExpr unary, EvaluationContext context)
+    private static bool EvaluateUnary(UnaryExpr unary, EvaluationContext context)
     {
         var operand = Evaluate(unary.Operand, context);
         return unary.Operator switch
@@ -26,7 +26,7 @@ internal static class Evaluator
         };
     }
 
-    private static object? EvaluateBinary(BinaryExpr binary, EvaluationContext context)
+    private static bool EvaluateBinary(BinaryExpr binary, EvaluationContext context)
     {
         if (binary.Operator == TokenType.And)
         {
