@@ -624,49 +624,14 @@ Aegis
 
 # Development Roadmap
 
-## Phase 1 — Core Engine
+Tracked as issues, not duplicated here — this list drifts from reality the
+moment something ships or gets reprioritized, and it already has once.
 
-- Policy loading
-- Policy validation
-- Compiler
-- Expression engine
-- Decision engine
-- Explain API
-- ASP.NET integration
-
----
-
-## Phase 2 — Advanced Authorization
-
-- Derived roles
-- Variables
-- Imports
-- Decision caching
-- Attribute providers
-- Policy testing
-- CLI
-
----
-
-## Phase 3 — Relationships
-
-- ReBAC
-- Relationship graph
-- Tuple storage
-- Graph evaluation
-- Multi-tenancy
-
----
-
-## Phase 4 — Platform
-
-- AuthZEN server
-- Dashboard
-- Policy editor
-- Audit logs
-- Git integration
-- Distributed cache
-- High availability
+- **[Milestones](https://github.com/ehncraft/Aegis/milestones)** — Phase 0
+  (MSSQL & existing auth server integration, first priority) through
+  Phase 4 (Platform), each with its issues.
+- **[Project board](https://github.com/users/ehncraft/projects/1)** — same
+  issues, Todo/In Progress/Done view.
 
 ---
 
