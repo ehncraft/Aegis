@@ -4,6 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <Description>Policy model (ResourcePolicy/ActionRule/AllowRule) and YAML policy loading for Aegis.</Description>
   </PropertyGroup>
 
   <ItemGroup>
