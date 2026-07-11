@@ -107,15 +107,15 @@ Rather than being a rewrite of an existing project, Aegis is designed as a **fir
 
 Aegis is **inspired by** existing authorization systems but **not constrained** by them.
 
-| Project | Inspiration |
-|----------|-------------|
-| Cerbos | Policy-driven authorization, PDP architecture, resource policies, explainability |
-| Cedar | Safe policy language, formal authorization model, expressive conditions |
-| Zanzibar | Relationship-based authorization (ReBAC), graph authorization, scalability |
-| OpenFGA | Relationship tuples and authorization modeling |
-| AuthZEN | Standard authorization APIs and interoperability |
-| ASP.NET Core | Dependency Injection, middleware, authorization handlers |
-| OpenTelemetry | Observability, metrics, tracing |
+| Project | Inspiration | Reference |
+|----------|-------------|-----------|
+| Cerbos | Policy-driven authorization, PDP architecture, resource policies, explainability | [docs.cerbos.dev](https://docs.cerbos.dev/) |
+| Cedar | Safe policy language, formal authorization model, expressive conditions | [Cedar language reference](https://docs.cedarpolicy.com/) · [Cedar paper (Amazon Science)](https://www.amazon.science/publications/cedar-a-new-language-for-expressive-fast-safe-and-analyzable-authorization) |
+| Zanzibar | Relationship-based authorization (ReBAC), graph authorization, scalability | [Zanzibar: Google's Consistent, Global Authorization System (USENIX ATC '19)](https://www.usenix.org/conference/atc19/presentation/pang) |
+| OpenFGA | Relationship tuples and authorization modeling | [openfga.dev docs](https://openfga.dev/docs/fga) |
+| AuthZEN | Standard authorization APIs and interoperability | [Authorization API 1.0 (OpenID AuthZEN WG)](https://openid.github.io/authzen/) |
+| ASP.NET Core | Dependency Injection, middleware, authorization handlers | [ASP.NET Core docs](https://learn.microsoft.com/aspnet/core/) |
+| OpenTelemetry | Observability, metrics, tracing | [opentelemetry.io](https://opentelemetry.io/) |
 
 The objective is to combine the strongest concepts from each into a cohesive, modern authorization platform.
 
@@ -490,7 +490,7 @@ services.AddAttributeProvider<UserAttributeProvider>();
 
 # Relationship Engine
 
-Inspired by Zanzibar and OpenFGA.
+Inspired by [Zanzibar](https://www.usenix.org/conference/atc19/presentation/pang) and [OpenFGA](https://openfga.dev/docs/fga) — see #15/#16/#17/#18 for the tracked Phase 3 work.
 
 Relationships become data rather than application logic.
 
@@ -514,7 +514,9 @@ become graph evaluations rather than hardcoded business logic.
 
 # AuthZEN Compatibility
 
-Aegis should expose a standards-based authorization API.
+Aegis should expose a standards-based authorization API — see the
+[Authorization API 1.0 specification](https://openid.github.io/authzen/)
+from the OpenID Foundation's AuthZEN Working Group (tracked in #20).
 
 ```
 Application
