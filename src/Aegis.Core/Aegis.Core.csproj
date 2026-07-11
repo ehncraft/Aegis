@@ -4,6 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <Description>Core domain model for Aegis: Principal, Resource, AuthorizationDecision, and the explainable-decision types.</Description>
   </PropertyGroup>
 
   <ItemGroup>
