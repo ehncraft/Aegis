@@ -13,9 +13,9 @@ public sealed class AegisResource
 
     public static AegisResource Create(string kind, string? id = null,
         IReadOnlyDictionary<string, object?>? attributes = null) => new()
-    {
-        Kind = kind,
-        Id = id,
-        Attributes = attributes ?? new Dictionary<string, object?>(),
-    };
+        {
+            Kind = kind,
+            Id = id,
+            Attributes = attributes ?? new Dictionary<string, object?>(),
+        };
 }

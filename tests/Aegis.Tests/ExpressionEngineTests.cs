@@ -1,4 +1,5 @@
 using Aegis.Expressions;
+
 using Xunit;
 
 namespace Aegis.Tests;
