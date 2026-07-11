@@ -1,0 +1,12 @@
+resource: invoices
+name: invoice-policy
+
+actions:
+  view:
+    allow:
+      roles:
+        - Finance
+
+  approve:
+    allow:
+      when: principal.department == resource.department

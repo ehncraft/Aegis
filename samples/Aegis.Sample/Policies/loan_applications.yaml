@@ -1,0 +1,16 @@
+resource: loan_applications
+name: loan-application-policy
+
+actions:
+  view:
+    allow:
+      roles:
+        - LoanOfficer
+
+  approve:
+    allow:
+      # Branch-scoped ABAC (officer only approves loans in their own branch),
+      # a lending-limit check, and segregation of duties (an officer can
+      # never approve their own application) -- all expressed as one
+      # condition, no new engine features required.
+      when: principal.branch == resource.branch && resource.amount <= principal.approvalLimit && principal.id != resource.applicantId
