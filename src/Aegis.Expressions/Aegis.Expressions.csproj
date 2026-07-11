@@ -4,6 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <Description>Condition-expression parser and tree-walking evaluator for Aegis policy rules.</Description>
   </PropertyGroup>
 
   <ItemGroup>

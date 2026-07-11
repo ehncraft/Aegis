@@ -9,4 +9,22 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
 
+  <!-- NuGet package metadata, inherited by every packable project. Version
+       is supplied by the release workflow from the pushed git tag; 0.0.0
+       here is just a safe local-build default. -->
+  <PropertyGroup>
+    <Version>0.0.0</Version>
+    <Authors>ehncraft</Authors>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/ehncraft/Aegis</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/ehncraft/Aegis</RepositoryUrl>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <PackageTags>authorization;rbac;abac;rebac;policy;dotnet</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup Condition="Exists('$(MSBuildThisFileDirectory)README.md')">
+    <None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
 </Project>
