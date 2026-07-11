@@ -4,6 +4,10 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- "Aegis.Core" and bare "Aegis" are already taken on nuget.org by
+         unrelated packages; the assembly/namespace stay "Aegis.Core"/"Aegis",
+         only the NuGet package identity changes. -->
+    <PackageId>Ehncraft.Aegis.Core</PackageId>
     <Description>Core domain model for Aegis: Principal, Resource, AuthorizationDecision, and the explainable-decision types.</Description>
   </PropertyGroup>
 
