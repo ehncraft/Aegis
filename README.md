@@ -39,6 +39,8 @@ src/
   Aegis.Sql            SQL Server-backed IAttributeProvider + IPolicyProvider
   Aegis.AspNetCore     services.AddAegis(...) DI registration, HttpContext.User authorization
   Aegis.Cli            `aegis validate`/`aegis authorize` -- a dotnet tool (AegisCli)
+  Aegis.Testing        ShouldAllowAsync/ShouldDenyAsync -- CI-friendly policy regression tests,
+                      no application host required
 tests/
   Aegis.Tests          Fast, no external dependencies -- the required CI check
   Aegis.IntegrationTests   Real SQL Server via Testcontainers -- separate, non-required CI job
@@ -114,6 +116,22 @@ aegis authorize Policies \
   --resource-attr branch=nairobi-cbd --resource-attr amount=250000 --resource-attr applicantId=member-42 \
   --action approve   # exit code 0 = allowed, 1 = denied, 2 = error; prints the explain JSON either way
 ```
+
+Or as CI-friendly policy regression tests (`Aegis.Testing`) -- no application host,
+no DI container, works with any test framework:
+
+```csharp
+using Aegis.Testing;
+
+var engine = AegisEngine.Create("Policies");
+
+await engine.ShouldAllowAsync(officer, withinLimitApplication, "approve");
+await engine.ShouldDenyAsync(officer, ownApplication, "approve"); // segregation of duties
+```
+
+A mismatch throws `PolicyAssertionException` with the full decision
+explanation attached, so a failing test tells you which condition didn't
+evaluate the way the policy intended -- not just "expected allow, got deny".
 
 ## Compliance notes for regulated finance
 

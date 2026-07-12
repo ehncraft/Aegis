@@ -28,6 +28,7 @@
     <ProjectReference Include="..\..\src\Aegis.Sql\Aegis.Sql.csproj" />
     <ProjectReference Include="..\..\src\Aegis.AspNetCore\Aegis.AspNetCore.csproj" />
     <ProjectReference Include="..\..\src\Aegis.Cli\Aegis.Cli.csproj" />
+    <ProjectReference Include="..\..\src\Aegis.Testing\Aegis.Testing.csproj" />
   </ItemGroup>
 
   <ItemGroup>
