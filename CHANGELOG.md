@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/ehncraft/Aegis/compare/v0.2.1...v0.2.2) (2026-07-12)
+
+
+### Bug Fixes
+
+* allow manually re-triggering publish for a partial release ([#56](https://github.com/ehncraft/Aegis/issues/56)) ([6ef955a](https://github.com/ehncraft/Aegis/commit/6ef955a91a323aa3386f1f3680ea1fbd2ad7569d))
+
 ## [0.2.1](https://github.com/ehncraft/Aegis/compare/v0.2.0...v0.2.1) (2026-07-11)
 
 
