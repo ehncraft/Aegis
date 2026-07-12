@@ -14,19 +14,26 @@ below for how that shapes the design.
 
 ## Status
 
-Phase 1 slice: policy loading, the expression engine, the decision engine,
-and the explain API. Deliberately a tree-walking interpreter, not the
-compiler/IR pipeline described below — that's a later optimization once the
-expression surface is stable. No relationships, no server, no dashboard yet.
+Phase 0 (MSSQL + existing ASP.NET Identity/IdentityServer/OpenIddict auth
+server integration) is done. Phase 1's core engine slice — policy loading,
+the expression engine, the decision engine, the explain API, and now DI/
+ASP.NET Core registration — is also done. Deliberately still a tree-walking
+interpreter, not the compiler/IR pipeline described below — that's a later
+optimization once the expression surface is stable. No relationships, no
+standalone server, no dashboard yet.
 
 ```
 src/
-  Aegis.Core          Principal, Resource, AuthorizationDecision, DecisionExplanation
+  Aegis.Core          Principal, Resource, AuthorizationDecision, DecisionExplanation,
+                      IAttributeProvider, IClaimsPrincipalMapper
   Aegis.Expressions    Tokenizer, parser, tree-walking evaluator for condition expressions
-  Aegis.Policies       ResourcePolicy/ActionRule/AllowRule model + YAML loader
+  Aegis.Policies       ResourcePolicy/ActionRule/AllowRule model, IPolicyProvider, YAML loader
   Aegis.Evaluator      PolicyEvaluator (decision engine) + AegisEngine facade
+  Aegis.Sql            SQL Server-backed IAttributeProvider + IPolicyProvider
+  Aegis.AspNetCore     services.AddAegis(...) DI registration, HttpContext.User authorization
 tests/
-  Aegis.Tests
+  Aegis.Tests          Fast, no external dependencies -- the required CI check
+  Aegis.IntegrationTests   Real SQL Server via Testcontainers -- separate, non-required CI job
 samples/
   Aegis.Sample         Runnable loan-approval walkthrough (see below)
 ```
@@ -65,6 +72,18 @@ actions:
       when: principal.branch == resource.branch && resource.amount <= principal.approvalLimit && principal.id != resource.applicantId
 ```
 
+Or via DI (`Aegis.AspNetCore`), authorizing straight off `HttpContext.User` --
+any `IAttributeProvider`/`IPolicyProvider` registered elsewhere (e.g.
+`Aegis.Sql`'s `AddSqlServerAttributeProvider`) is picked up automatically,
+in any registration order:
+
+```csharp
+services.AddAegis(options => options.AddPolicies("Policies"));
+
+// in an endpoint/controller:
+var decision = await engine.AuthorizeAsync(HttpContext, loanApplication, "approve");
+```
+
 ## Compliance notes for regulated finance
 
 Three patterns regulated-finance deployments care about, and where each one
@@ -86,8 +105,9 @@ stands today versus the roadmap below:
   consistently rather than the engine enforcing it structurally.
 - **Data residency.** Policy Storage (see below) is designed pluggable
   specifically so a regulated deployment can pick a backend that keeps
-  policy data in-region (e.g. a regional Blob Storage account or an
-  on-prem Git server) — not yet implemented beyond the filesystem loader.
+  policy data in-region. The filesystem loader and a SQL Server backend
+  (`Aegis.Sql`) both exist today; blob storage, Git, and the rest of the
+  README's Policy Storage list remain future work.
 
 ---
 

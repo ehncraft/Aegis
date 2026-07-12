@@ -80,6 +80,7 @@ jobs:
           dotnet pack src/Aegis.Policies/Aegis.Policies.csproj -c Release --no-build -p:Version=${{ env.PACKAGE_VERSION }} -o ./nupkgs
           dotnet pack src/Aegis.Evaluator/Aegis.Evaluator.csproj -c Release --no-build -p:Version=${{ env.PACKAGE_VERSION }} -o ./nupkgs
           dotnet pack src/Aegis.Sql/Aegis.Sql.csproj -c Release --no-build -p:Version=${{ env.PACKAGE_VERSION }} -o ./nupkgs
+          dotnet pack src/Aegis.AspNetCore/Aegis.AspNetCore.csproj -c Release --no-build -p:Version=${{ env.PACKAGE_VERSION }} -o ./nupkgs
 
       # Exchanges this workflow run's GitHub OIDC token for a NuGet.org
       # short-lived (~1hr) API key. Requires a Trusted Publishing policy
