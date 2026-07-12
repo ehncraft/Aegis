@@ -32,6 +32,26 @@ public class AegisAspNetCoreTests
             Task.FromResult(resourceAttributes);
     }
 
+    /// <summary>A dependency only DI (not a hand-built instance) could supply.</summary>
+    private sealed class DepartmentLookup
+    {
+        private readonly string _department = "finance";
+
+        public string Department => _department;
+    }
+
+    private sealed class DiResolvedAttributeProvider(DepartmentLookup lookup) : IAttributeProvider
+    {
+        public Task<PrincipalAttributes> GetPrincipalAttributesAsync(
+            string principalId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(PrincipalAttributes.Empty);
+
+        public Task<IReadOnlyDictionary<string, object?>> GetResourceAttributesAsync(
+            string resourceKind, string resourceId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyDictionary<string, object?>>(
+                new Dictionary<string, object?> { ["department"] = lookup.Department });
+    }
+
     [Fact]
     public void AddAegis_NoPolicySource_ThrowsInvalidOperationException()
     {
@@ -97,6 +117,36 @@ public class AegisAspNetCoreTests
         // would -- *before* AddAegis, to prove pickup doesn't depend on ordering.
         services.AddSingleton<IAttributeProvider>(
             new FakeAttributeProvider(new Dictionary<string, object?> { ["department"] = "finance" }));
+        services.AddAegis(options => options.AddPolicyProvider(new FakePolicyProvider(policy)));
+
+        var provider = services.BuildServiceProvider();
+        var engine = provider.GetRequiredService<AegisEngine>();
+        var decision = await engine.AuthorizeAsync(
+            AegisPrincipal.Create("alice", attributes: new Dictionary<string, object?> { ["department"] = "finance" }),
+            AegisResource.Create("invoices", "INV-1"), // no explicit department -- must come from the provider
+            "approve");
+
+        Assert.True(decision.Allowed);
+    }
+
+    [Fact]
+    public async Task AddAttributeProvider_Generic_IsResolvedThroughDIAndPickedUpAutomaticallyAsync()
+    {
+        var policy = new ResourcePolicy
+        {
+            Resource = "invoices",
+            Actions = new Dictionary<string, ActionRule>
+            {
+                ["approve"] = new() { Allow = new AllowRule { When = "principal.department == resource.department" } },
+            },
+        };
+        var services = new ServiceCollection();
+
+        // DepartmentLookup has no parameterless constructor Aegis could
+        // fall back to -- only a real DI resolution of DiResolvedAttributeProvider
+        // can supply it, proving AddAttributeProvider<T>() goes through DI.
+        services.AddSingleton<DepartmentLookup>();
+        services.AddAttributeProvider<DiResolvedAttributeProvider>();
         services.AddAegis(options => options.AddPolicyProvider(new FakePolicyProvider(policy)));
 
         var provider = services.BuildServiceProvider();
