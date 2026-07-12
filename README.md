@@ -29,7 +29,8 @@ src/
                       IAttributeProvider, IClaimsPrincipalMapper
   Aegis.Expressions    Tokenizer, parser, tree-walking evaluator for condition expressions
   Aegis.Policies       ResourcePolicy/ActionRule/AllowRule model, IPolicyProvider, YAML loader
-  Aegis.Evaluator      PolicyEvaluator (decision engine), PolicyValidator, AegisEngine facade
+  Aegis.Evaluator      PolicyEvaluator (decision engine), PolicyValidator, opt-in decision
+                      caching (AegisEngine.WithDecisionCache), AegisEngine facade
   Aegis.Sql            SQL Server-backed IAttributeProvider + IPolicyProvider
   Aegis.AspNetCore     services.AddAegis(...) DI registration, HttpContext.User authorization
   Aegis.Cli            `aegis validate`/`aegis authorize` -- a dotnet tool (AegisCli)
