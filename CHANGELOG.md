@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.4](https://github.com/ehncraft/Aegis/compare/v0.2.3...v0.2.4) (2026-07-12)
+
+
+### Bug Fixes
+
+* revert AegisCore to Ehncraft.Aegis.Core (nuget.org similarity block) ([#61](https://github.com/ehncraft/Aegis/issues/61)) ([a0a7784](https://github.com/ehncraft/Aegis/commit/a0a778470f08a2b7939377c6487bbfdf7bef9a54))
+
 ## [0.2.3](https://github.com/ehncraft/Aegis/compare/v0.2.2...v0.2.3) (2026-07-12)
 
 
