@@ -4,10 +4,15 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <!-- Every dotted "Aegis.*" package name is taken/blocked on nuget.org by
-         an unrelated project; one-word PackageIds sidestep that entirely.
-         Assembly name and namespace stay "Aegis.Core"/"Aegis" unchanged. -->
-    <PackageId>AegisCore</PackageId>
+    <!-- nuget.org rejects "AegisCore" outright (400: "too similar" to the
+         existing unrelated "Aegis.Core"; dots/case are ignored by that
+         check, so no one-word variant of this specific name will ever
+         work). "Ehncraft.Aegis.Core" already has a published 0.2.1 version
+         from before this got sorted out, so keep using it here; the other
+         three packages don't collide with anything and keep their
+         one-word PackageIds. Assembly name and namespace are unaffected
+         either way. -->
+    <PackageId>Ehncraft.Aegis.Core</PackageId>
     <Description>Core domain model for Aegis: Principal, Resource, AuthorizationDecision, and the explainable-decision types.</Description>
   </PropertyGroup>
 
