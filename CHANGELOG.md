@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.3](https://github.com/ehncraft/Aegis/compare/v0.2.2...v0.2.3) (2026-07-12)
+
+
+### Bug Fixes
+
+* use one-word PackageIds to sidestep the Aegis.* nuget.org block ([#58](https://github.com/ehncraft/Aegis/issues/58)) ([2b1476f](https://github.com/ehncraft/Aegis/commit/2b1476faddf5ecd0b89039ede45195d0c5ee2b0f))
+
 ## [0.2.2](https://github.com/ehncraft/Aegis/compare/v0.2.1...v0.2.2) (2026-07-12)
 
 
