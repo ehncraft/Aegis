@@ -33,9 +33,9 @@ public sealed class SqlServerAttributeProvider : IAttributeProvider
         if (_options is { RoleTable: not null, RoleUserIdColumn: not null, RoleNameColumn: not null })
         {
             var sql =
-                $"SELECT {QuoteIdentifier(_options.RoleNameColumn)} " +
-                $"FROM {QuoteIdentifier(_options.RoleTable)} " +
-                $"WHERE {QuoteIdentifier(_options.RoleUserIdColumn)} = @principalId";
+                $"SELECT {SqlIdentifier.Quote(_options.RoleNameColumn)} " +
+                $"FROM {SqlIdentifier.Quote(_options.RoleTable)} " +
+                $"WHERE {SqlIdentifier.Quote(_options.RoleUserIdColumn)} = @principalId";
             var rows = await _executor.QueryAsync(
                 sql, new Dictionary<string, object?> { ["@principalId"] = principalId }, cancellationToken);
 
@@ -73,8 +73,8 @@ public sealed class SqlServerAttributeProvider : IAttributeProvider
             return attributes;
         }
 
-        var columns = string.Join(", ", attributeColumns.Values.Select(QuoteIdentifier));
-        var sql = $"SELECT {columns} FROM {QuoteIdentifier(table)} WHERE {QuoteIdentifier(idColumn)} = @id";
+        var columns = string.Join(", ", attributeColumns.Values.Select(SqlIdentifier.Quote));
+        var sql = $"SELECT {columns} FROM {SqlIdentifier.Quote(table)} WHERE {SqlIdentifier.Quote(idColumn)} = @id";
         var rows = await _executor.QueryAsync(
             sql, new Dictionary<string, object?> { ["@id"] = id }, cancellationToken);
 
@@ -94,7 +94,4 @@ public sealed class SqlServerAttributeProvider : IAttributeProvider
 
         return attributes;
     }
-
-    /// <summary>Brackets a SQL Server identifier, escaping embedded "]" -- identifiers can't be parameterized.</summary>
-    private static string QuoteIdentifier(string identifier) => $"[{identifier.Replace("]", "]]")}]";
 }
