@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.0](https://github.com/ehncraft/Aegis/compare/v0.4.0...v0.5.0) (2026-07-12)
+
+
+### Features
+
+* Aegis.Cli -- validate policies and evaluate decisions from the command line (closes [#14](https://github.com/ehncraft/Aegis/issues/14)) ([#73](https://github.com/ehncraft/Aegis/issues/73)) ([d0ad65c](https://github.com/ehncraft/Aegis/commit/d0ad65c90e56448586ceb5c34979a6f465c4b977))
+* opt-in decision caching (closes [#11](https://github.com/ehncraft/Aegis/issues/11)) ([#75](https://github.com/ehncraft/Aegis/issues/75)) ([641a292](https://github.com/ehncraft/Aegis/commit/641a292cbc7e397f4a978124f71a1e9d73b91a73))
+
 ## [0.4.0](https://github.com/ehncraft/Aegis/compare/v0.3.0...v0.4.0) (2026-07-12)
 
 
