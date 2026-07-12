@@ -1,0 +1,42 @@
+name: Trivy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Dependencies can go from clean to CVE-affected with no code change on
+    # our side; catch that between pushes too, not just on the next PR.
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write # required to upload SARIF to the Security tab
+    steps:
+      - uses: actions/checkout@v4
+
+      # Advisory, not a required status check -- same posture as CodeQL.
+      # Dependabot already opens PRs for known-vulnerable dependencies; this
+      # is the CI-time view of the same class of finding, surfaced in the
+      # Security tab rather than gating every merge on an upstream CVE fix
+      # that may not exist yet.
+      - name: Run Trivy vulnerability scanner (filesystem/dependencies)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: "fs"
+          ignore-unfixed: true
+          format: "sarif"
+          output: "trivy-results.sarif"
+          severity: "CRITICAL,HIGH"
+
+      - name: Upload Trivy scan results to the Security tab
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: "trivy-results.sarif"
