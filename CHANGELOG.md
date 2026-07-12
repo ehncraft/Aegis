@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.4.0](https://github.com/ehncraft/Aegis/compare/v0.3.0...v0.4.0) (2026-07-12)
+
+
+### Features
+
+* ASP.NET Core integration -- services.AddAegis(...) and HttpContext.User (closes [#7](https://github.com/ehncraft/Aegis/issues/7)) ([#70](https://github.com/ehncraft/Aegis/issues/70)) ([bb50ad7](https://github.com/ehncraft/Aegis/commit/bb50ad757b1680cac6c789b04f2d2ef1ef21c065))
+* map ASP.NET Identity/IdentityServer/OpenIddict claims to AegisPrincipal (closes [#29](https://github.com/ehncraft/Aegis/issues/29), [#42](https://github.com/ehncraft/Aegis/issues/42), [#43](https://github.com/ehncraft/Aegis/issues/43), [#44](https://github.com/ehncraft/Aegis/issues/44), [#45](https://github.com/ehncraft/Aegis/issues/45)) ([#69](https://github.com/ehncraft/Aegis/issues/69)) ([cb54e03](https://github.com/ehncraft/Aegis/commit/cb54e033386b1dcd221cfffbab1bd91ab5adedaf))
+* MSSQL-backed policy storage (closes [#28](https://github.com/ehncraft/Aegis/issues/28), [#38](https://github.com/ehncraft/Aegis/issues/38), [#39](https://github.com/ehncraft/Aegis/issues/39), [#40](https://github.com/ehncraft/Aegis/issues/40), [#41](https://github.com/ehncraft/Aegis/issues/41)) ([#67](https://github.com/ehncraft/Aegis/issues/67)) ([4a573e6](https://github.com/ehncraft/Aegis/commit/4a573e6f3fc4f72d4b302fcf5b193ce09a641ff0))
+* validate policies at load time, not on first matching request (closes [#2](https://github.com/ehncraft/Aegis/issues/2)) ([#72](https://github.com/ehncraft/Aegis/issues/72)) ([3638975](https://github.com/ehncraft/Aegis/commit/3638975fe1ad3db5171fe83d6a81655df39ee592))
+
+
+### Bug Fixes
+
+* whitelist SQL Server identifiers per OWASP guidance ([#71](https://github.com/ehncraft/Aegis/issues/71)) ([bcb1c10](https://github.com/ehncraft/Aegis/commit/bcb1c10c66d4b46b8ea6f821acb09aaa48bbba98))
+
 ## [0.3.0](https://github.com/ehncraft/Aegis/compare/v0.2.4...v0.3.0) (2026-07-12)
 
 
