@@ -50,4 +50,20 @@ public static class ServiceCollectionExtensions
 
         return services;
     }
+
+    /// <summary>
+    /// Registers <typeparamref name="T"/> as an <see cref="IAttributeProvider"/>,
+    /// resolved through DI like any other service -- so it can take a
+    /// constructor-injected <c>HttpClient</c>, <c>DbContext</c>, etc. This is
+    /// the general-purpose registration path; <c>Aegis.Sql</c>'s
+    /// <c>AddSqlServerAttributeProvider</c> is a dedicated shortcut for the
+    /// SQL Server case. Either way -- and regardless of call order relative
+    /// to <see cref="AddAegis"/> -- the provider is picked up automatically.
+    /// </summary>
+    public static IServiceCollection AddAttributeProvider<T>(this IServiceCollection services)
+        where T : class, IAttributeProvider
+    {
+        services.AddSingleton<IAttributeProvider, T>();
+        return services;
+    }
 }
