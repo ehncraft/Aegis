@@ -25,6 +25,16 @@ public sealed class AegisEngine
         IEnumerable<ResourcePolicy> policies, params IAttributeProvider[] attributeProviders) =>
         new(new PolicyEvaluator(policies), attributeProviders);
 
+    /// <summary>Loads policies from any <see cref="IPolicyProvider"/> -- a SQL Server table, etc.</summary>
+    public static async Task<AegisEngine> CreateAsync(
+        IPolicyProvider policyProvider,
+        IReadOnlyList<IAttributeProvider>? attributeProviders = null,
+        CancellationToken cancellationToken = default)
+    {
+        var policies = await policyProvider.LoadPoliciesAsync(cancellationToken);
+        return new AegisEngine(new PolicyEvaluator(policies), attributeProviders ?? []);
+    }
+
     /// <summary>
     /// Enriches <paramref name="principal"/>/<paramref name="resource"/> with
     /// any configured <see cref="IAttributeProvider"/> output (explicitly-set
