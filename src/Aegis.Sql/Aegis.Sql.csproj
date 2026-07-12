@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Aegis.Core\Aegis.Core.csproj" />
+    <ProjectReference Include="..\Aegis.Policies\Aegis.Policies.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -11,6 +12,7 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+    <PackageReference Include="YamlDotNet" Version="18.1.0" />
   </ItemGroup>
 
   <PropertyGroup>
@@ -18,7 +20,11 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <PackageId>AegisSql</PackageId>
-    <Description>SQL Server-backed IAttributeProvider for Aegis -- reads principal/resource attributes from an existing database with configurable table/column mapping.</Description>
+    <Description>SQL Server-backed IAttributeProvider and IPolicyProvider for Aegis -- reads principal/resource attributes and policies from an existing database with configurable table/column mapping.</Description>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="Scripts\CreatePolicyTable.sql" Pack="true" PackagePath="Scripts\" />
+  </ItemGroup>
 
 </Project>
