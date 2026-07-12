@@ -3,6 +3,11 @@ name: Release
 on:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to (re)publish, e.g. v0.2.1. Leave empty for the latest GitHub release. For retrying a partial nuget.org push (--skip-duplicate makes this safe to rerun) without cutting a new version."
+        required: false
 
 permissions:
   contents: write
@@ -30,15 +35,30 @@ jobs:
 
   publish:
     needs: release-please
-    if: ${{ needs.release-please.outputs.release_created }}
+    if: ${{ needs.release-please.outputs.release_created || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     permissions:
       id-token: write # required for NuGet Trusted Publishing (OIDC)
       contents: write # required to attach .nupkg files to the release
     steps:
+      - name: Determine release tag
+        id: tag
+        run: |
+          if [ -n "$DISPATCH_TAG" ]; then
+            echo "tag_name=$DISPATCH_TAG" >> "$GITHUB_OUTPUT"
+          elif [ -n "$RELEASE_PLEASE_TAG" ]; then
+            echo "tag_name=$RELEASE_PLEASE_TAG" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag_name=$(gh release view --json tagName -q .tagName)" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DISPATCH_TAG: ${{ inputs.tag }}
+          RELEASE_PLEASE_TAG: ${{ needs.release-please.outputs.tag_name }}
+
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.release-please.outputs.tag_name }}
+          ref: ${{ steps.tag.outputs.tag_name }}
 
       - uses: actions/setup-dotnet@v4
         with:
@@ -47,7 +67,7 @@ jobs:
       - name: Derive package version from tag
         run: echo "PACKAGE_VERSION=${TAG_NAME#v}" >> "$GITHUB_ENV"
         env:
-          TAG_NAME: ${{ needs.release-please.outputs.tag_name }}
+          TAG_NAME: ${{ steps.tag.outputs.tag_name }}
 
       - run: dotnet restore
       - run: dotnet build --no-restore -c Release -p:Version=${{ env.PACKAGE_VERSION }}
@@ -77,6 +97,7 @@ jobs:
           NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
 
       - name: Attach packages to the GitHub release
-        run: gh release upload "${{ needs.release-please.outputs.tag_name }}" ./nupkgs/*.nupkg
+        run: gh release upload "$TAG_NAME" ./nupkgs/*.nupkg --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ steps.tag.outputs.tag_name }}
