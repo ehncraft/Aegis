@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.7.0](https://github.com/ehncraft/Aegis/compare/v0.6.0...v0.7.0) (2026-07-12)
+
+
+### Features
+
+* Aegis.Testing -- CI-friendly policy regression tests (closes [#13](https://github.com/ehncraft/Aegis/issues/13)) ([#80](https://github.com/ehncraft/Aegis/issues/80)) ([6804e6a](https://github.com/ehncraft/Aegis/commit/6804e6a93f935a1a1d05bb4b1e96fc675f8374f8))
+* services.AddAttributeProvider&lt;T&gt;() DI registration (closes [#12](https://github.com/ehncraft/Aegis/issues/12)) ([#78](https://github.com/ehncraft/Aegis/issues/78)) ([fa179b8](https://github.com/ehncraft/Aegis/commit/fa179b82dfb153e754347f99df2b2a57e08760c6))
+
 ## [0.6.0](https://github.com/ehncraft/Aegis/compare/v0.5.0...v0.6.0) (2026-07-12)
 
 
