@@ -26,6 +26,11 @@
     <ProjectReference Include="..\..\src\Aegis.Policies\Aegis.Policies.csproj" />
     <ProjectReference Include="..\..\src\Aegis.Evaluator\Aegis.Evaluator.csproj" />
     <ProjectReference Include="..\..\src\Aegis.Sql\Aegis.Sql.csproj" />
+    <ProjectReference Include="..\..\src\Aegis.AspNetCore\Aegis.AspNetCore.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
   <ItemGroup>

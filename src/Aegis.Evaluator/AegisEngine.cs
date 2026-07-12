@@ -1,3 +1,5 @@
+using System.Security.Claims;
+
 using Aegis.Policies;
 
 namespace Aegis;
@@ -50,4 +52,18 @@ public sealed class AegisEngine
         resource = await AttributeEnricher.EnrichAsync(resource, _attributeProviders, cancellationToken);
         return _evaluator.Authorize(principal, resource, action);
     }
+
+    /// <summary>
+    /// Maps <paramref name="claimsPrincipal"/> -- typically <c>HttpContext.User</c>
+    /// -- via <paramref name="mapper"/> before authorizing. Framework-agnostic
+    /// (<see cref="ClaimsPrincipal"/> is BCL, not ASP.NET Core-specific); see
+    /// <c>Aegis.AspNetCore</c> for the <c>HttpContext</c> convenience overload.
+    /// </summary>
+    public Task<AuthorizationDecision> AuthorizeAsync(
+        ClaimsPrincipal claimsPrincipal,
+        IClaimsPrincipalMapper mapper,
+        AegisResource resource,
+        string action,
+        CancellationToken cancellationToken = default) =>
+        AuthorizeAsync(mapper.Map(claimsPrincipal), resource, action, cancellationToken);
 }

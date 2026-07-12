@@ -3,6 +3,7 @@
     <Project Path="samples/Aegis.Sample/Aegis.Sample.csproj" />
   </Folder>
   <Folder Name="/src/">
+    <Project Path="src/Aegis.AspNetCore/Aegis.AspNetCore.csproj" />
     <Project Path="src/Aegis.Core/Aegis.Core.csproj" />
     <Project Path="src/Aegis.Evaluator/Aegis.Evaluator.csproj" />
     <Project Path="src/Aegis.Expressions/Aegis.Expressions.csproj" />
