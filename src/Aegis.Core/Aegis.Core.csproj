@@ -4,10 +4,10 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <!-- "Aegis.Core" and bare "Aegis" are already taken on nuget.org by
-         unrelated packages; the assembly/namespace stay "Aegis.Core"/"Aegis",
-         only the NuGet package identity changes. -->
-    <PackageId>Ehncraft.Aegis.Core</PackageId>
+    <!-- Every dotted "Aegis.*" package name is taken/blocked on nuget.org by
+         an unrelated project; one-word PackageIds sidestep that entirely.
+         Assembly name and namespace stay "Aegis.Core"/"Aegis" unchanged. -->
+    <PackageId>AegisCore</PackageId>
     <Description>Core domain model for Aegis: Principal, Resource, AuthorizationDecision, and the explainable-decision types.</Description>
   </PropertyGroup>
 
