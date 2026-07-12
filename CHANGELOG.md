@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/ehncraft/Aegis/compare/v0.2.0...v0.2.1) (2026-07-11)
+
+
+### Bug Fixes
+
+* resolve NuGet package ID collision on Aegis.Core ([#54](https://github.com/ehncraft/Aegis/issues/54)) ([74aee60](https://github.com/ehncraft/Aegis/commit/74aee60249a1571f2816a0832e014f0b4a3d0a5d))
+
 ## [0.2.0](https://github.com/ehncraft/Aegis/compare/v0.1.0...v0.2.0) (2026-07-11)
 
 
