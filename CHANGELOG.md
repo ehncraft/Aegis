@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/ehncraft/Aegis/compare/v0.5.0...v0.6.0) (2026-07-12)
+
+
+### Features
+
+* policy variables, derived roles, and imports (closes [#8](https://github.com/ehncraft/Aegis/issues/8), [#9](https://github.com/ehncraft/Aegis/issues/9), [#10](https://github.com/ehncraft/Aegis/issues/10)) ([#76](https://github.com/ehncraft/Aegis/issues/76)) ([f6f0355](https://github.com/ehncraft/Aegis/commit/f6f035509dcb7ac7aa00abe5e85b233f22eaa458))
+
 ## [0.5.0](https://github.com/ehncraft/Aegis/compare/v0.4.0...v0.5.0) (2026-07-12)
 
 
