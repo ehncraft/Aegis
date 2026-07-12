@@ -5,16 +5,31 @@ using Aegis.Policies;
 namespace Aegis;
 
 /// <summary>Entry point for embedding Aegis directly in an application, no DI required.</summary>
-public sealed class AegisEngine
+public sealed class AegisEngine : IDisposable
 {
     private readonly PolicyEvaluator _evaluator;
     private readonly IReadOnlyList<IAttributeProvider> _attributeProviders;
+    private readonly DecisionCache? _cache;
 
-    private AegisEngine(PolicyEvaluator evaluator, IReadOnlyList<IAttributeProvider> attributeProviders)
+    private AegisEngine(
+        PolicyEvaluator evaluator, IReadOnlyList<IAttributeProvider> attributeProviders, DecisionCache? cache = null)
     {
         _evaluator = evaluator;
         _attributeProviders = attributeProviders;
+        _cache = cache;
     }
+
+    /// <summary>
+    /// Returns a new engine, sharing this one's policies and attribute
+    /// providers, that caches decisions for <paramref name="options"/>'s
+    /// <see cref="DecisionCacheOptions.Duration"/>. Caching happens before
+    /// attribute-provider enrichment, so a cache hit skips that I/O too,
+    /// not just re-evaluation.
+    /// </summary>
+    public AegisEngine WithDecisionCache(DecisionCacheOptions options) =>
+        new(_evaluator, _attributeProviders, new DecisionCache(options));
+
+    public void Dispose() => _cache?.Dispose();
 
     /// <summary>
     /// Loads every YAML policy file in <paramref name="policiesDirectory"/>.
@@ -56,6 +71,9 @@ public sealed class AegisEngine
     /// Enriches <paramref name="principal"/>/<paramref name="resource"/> with
     /// any configured <see cref="IAttributeProvider"/> output (explicitly-set
     /// attributes always win over provider-supplied ones), then evaluates.
+    /// If <see cref="WithDecisionCache"/> was used, an identical call within
+    /// the cache's <see cref="DecisionCacheOptions.Duration"/> skips both
+    /// enrichment and evaluation.
     /// </summary>
     public async Task<AuthorizationDecision> AuthorizeAsync(
         AegisPrincipal principal,
@@ -63,9 +81,22 @@ public sealed class AegisEngine
         string action,
         CancellationToken cancellationToken = default)
     {
+        var cacheKey = _cache is null ? null : DecisionCache.BuildKey(principal, resource, action);
+        if (cacheKey is not null && _cache!.TryGet(cacheKey, out var cachedDecision))
+        {
+            return cachedDecision;
+        }
+
         principal = await AttributeEnricher.EnrichAsync(principal, _attributeProviders, cancellationToken);
         resource = await AttributeEnricher.EnrichAsync(resource, _attributeProviders, cancellationToken);
-        return _evaluator.Authorize(principal, resource, action);
+        var decision = _evaluator.Authorize(principal, resource, action);
+
+        if (cacheKey is not null)
+        {
+            _cache!.Set(cacheKey, decision);
+        }
+
+        return decision;
     }
 
     /// <summary>
