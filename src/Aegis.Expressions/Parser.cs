@@ -9,8 +9,9 @@ namespace Aegis.Expressions;
 ///   equality   := comparison ( ('==' | '!=') comparison )*
 ///   comparison := unary ( ('&lt;' | '&lt;=' | '&gt;' | '&gt;=') unary )*
 ///   unary      := '!' unary | primary
-///   primary    := literal | member | '(' or ')'
+///   primary    := literal | member | variable | '(' or ')'
 ///   member     := IDENTIFIER ('.' IDENTIFIER)*
+///   variable   := '${' IDENTIFIER '}'
 /// </summary>
 internal sealed class Parser
 {
@@ -107,6 +108,10 @@ internal sealed class Parser
 
             case TokenType.Identifier:
                 return ParseMember();
+
+            case TokenType.Variable:
+                Advance();
+                return new VariableExpr(token.Text);
 
             case TokenType.LParen:
                 Advance();

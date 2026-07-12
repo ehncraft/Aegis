@@ -13,6 +13,12 @@ internal sealed class MemberExpr(IReadOnlyList<string> path) : Expr
     public IReadOnlyList<string> Path { get; } = path;
 }
 
+/// <summary>A <c>${name}</c> reference to a policy variable.</summary>
+internal sealed class VariableExpr(string name) : Expr
+{
+    public string Name { get; } = name;
+}
+
 internal sealed class UnaryExpr(TokenType op, Expr operand) : Expr
 {
     public TokenType Operator { get; } = op;

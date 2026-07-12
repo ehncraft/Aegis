@@ -1,0 +1,8 @@
+name: common
+
+variables:
+  isFinance: principal.department == 'finance'
+
+derivedRoles:
+  owner:
+    when: principal.id == resource.ownerId

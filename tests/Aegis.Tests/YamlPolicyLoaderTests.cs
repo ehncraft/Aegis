@@ -33,4 +33,41 @@ public class YamlPolicyLoaderTests
         Assert.Throws<DirectoryNotFoundException>(
             () => YamlPolicyLoader.LoadDirectory(Path.Combine(FixturesPath, "does-not-exist")));
     }
+
+    [Fact]
+    public void LoadDirectory_MergesImportedVariablesAndDerivedRoles()
+    {
+        var policies = YamlPolicyLoader.LoadDirectory(Path.Combine(FixturesPath, "Imports"));
+
+        var accounts = Assert.Single(policies, p => p.Resource == "accounts");
+        Assert.Equal("principal.department == 'finance'", accounts.Variables["isFinance"]);
+        Assert.Equal("principal.id == resource.ownerId", accounts.DerivedRoles["owner"].When);
+    }
+
+    [Fact]
+    public void LoadDirectory_DoesNotReturnLibraryFilesAsPolicies()
+    {
+        var policies = YamlPolicyLoader.LoadDirectory(Path.Combine(FixturesPath, "Imports"));
+
+        Assert.DoesNotContain(policies, p => p.Resource == string.Empty);
+        Assert.Single(policies);
+    }
+
+    [Fact]
+    public void LoadDirectory_LocalVariableCollidesWithImport_Throws()
+    {
+        var ex = Assert.Throws<PolicyLoadException>(
+            () => YamlPolicyLoader.LoadDirectory(Path.Combine(FixturesPath, "ImportCollision")));
+
+        Assert.Contains("isFinance", ex.Message);
+    }
+
+    [Fact]
+    public void LoadDirectory_UnknownImport_Throws()
+    {
+        var ex = Assert.Throws<PolicyLoadException>(
+            () => YamlPolicyLoader.LoadDirectory(Path.Combine(FixturesPath, "ImportMissing")));
+
+        Assert.Contains("nonexistent", ex.Message);
+    }
 }

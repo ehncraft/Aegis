@@ -1,0 +1,15 @@
+# Shared library: variables and derived roles reusable across lending
+# policies via `imports:`. A library file is identified by `name:` and has
+# no `resource:` key -- that's what distinguishes it from a resource policy.
+name: lending-common
+
+variables:
+  sameBranch: principal.branch == resource.branch
+  withinLimit: resource.amount <= principal.approvalLimit
+  isApplicant: principal.id == resource.applicantId
+
+derivedRoles:
+  # Computed, not held directly by the principal -- true whenever the
+  # requesting principal is the applicant on the loan being acted on.
+  applicant:
+    when: principal.id == resource.applicantId

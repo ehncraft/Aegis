@@ -116,6 +116,11 @@ internal sealed class Lexer
             return new Token(TokenType.Greater, ">", null, start);
         }
 
+        if (c == '$' && Peek() == '{')
+        {
+            return ReadVariable(start);
+        }
+
         if (c == '\'' || c == '"')
         {
             return ReadString(c, start);
@@ -193,6 +198,32 @@ internal sealed class Lexer
         var text = _text[start.._pos];
         var value = double.Parse(text, CultureInfo.InvariantCulture);
         return new Token(TokenType.Number, text, value, start);
+    }
+
+    private Token ReadVariable(int start)
+    {
+        _pos += 2; // "${"
+        var nameStart = _pos;
+
+        if (!(char.IsLetter(Current) || Current == '_'))
+        {
+            throw new ExpressionSyntaxException("Expected a variable name after '${'", start);
+        }
+
+        while (char.IsLetterOrDigit(Current) || Current == '_')
+        {
+            _pos++;
+        }
+
+        var name = _text[nameStart.._pos];
+
+        if (Current != '}')
+        {
+            throw new ExpressionSyntaxException("Unterminated variable reference, expected '}'", start);
+        }
+
+        _pos++; // "}"
+        return new Token(TokenType.Variable, name, name, start);
     }
 
     private Token ReadIdentifier(int start)
