@@ -1,0 +1,7 @@
+resource: invoices
+name: broken-policy
+
+actions:
+  approve:
+    allow:
+      when: principal.department ==
