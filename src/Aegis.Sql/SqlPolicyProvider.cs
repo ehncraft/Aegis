@@ -38,8 +38,8 @@ public sealed class SqlPolicyProvider : IPolicyProvider
         try
         {
             var sql =
-                $"SELECT {QuoteIdentifier(_options.ResourceNameColumn)}, {QuoteIdentifier(_options.PolicyYamlColumn)} " +
-                $"FROM {QuoteIdentifier(_options.Table)}";
+                $"SELECT {SqlIdentifier.Quote(_options.ResourceNameColumn)}, {SqlIdentifier.Quote(_options.PolicyYamlColumn)} " +
+                $"FROM {SqlIdentifier.Quote(_options.Table)}";
             rows = await _executor.QueryAsync(sql, new Dictionary<string, object?>(), cancellationToken);
         }
         catch (Exception ex)
@@ -75,6 +75,4 @@ public sealed class SqlPolicyProvider : IPolicyProvider
 
         return policies;
     }
-
-    private static string QuoteIdentifier(string identifier) => $"[{identifier.Replace("]", "]]")}]";
 }
