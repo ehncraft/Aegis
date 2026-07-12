@@ -93,4 +93,78 @@ public class ExpressionEngineTests
     {
         Assert.Throws<ExpressionSyntaxException>(() => CompiledExpression.Parse("principal.department =="));
     }
+
+    [Fact]
+    public void Variable_ResolvesFromScope()
+    {
+        var isFinance = CompiledExpression.Parse("principal.department == 'finance'");
+        var scope = new VariableScope(new Dictionary<string, CompiledExpression> { ["isFinance"] = isFinance });
+        var context = ContextWith(
+                new Dictionary<string, object?> { ["department"] = "finance" },
+                new Dictionary<string, object?>())
+            .WithVariables(scope);
+
+        var expr = CompiledExpression.Parse("${isFinance}");
+
+        Assert.True(expr.EvaluateBoolean(context));
+    }
+
+    [Fact]
+    public void Variable_CanReferenceAnotherVariable()
+    {
+        var inner = CompiledExpression.Parse("true");
+        var outer = CompiledExpression.Parse("${inner} && true");
+        var scope = new VariableScope(new Dictionary<string, CompiledExpression>
+        {
+            ["inner"] = inner,
+            ["outer"] = outer,
+        });
+        var context = new EvaluationContext().WithVariables(scope);
+
+        var expr = CompiledExpression.Parse("${outer}");
+
+        Assert.True(expr.EvaluateBoolean(context));
+    }
+
+    [Fact]
+    public void Variable_UnknownName_Throws()
+    {
+        var expr = CompiledExpression.Parse("${missing}");
+
+        Assert.Throws<ExpressionEvaluationException>(() => expr.EvaluateBoolean(new EvaluationContext()));
+    }
+
+    [Fact]
+    public void Variable_CircularReference_Throws()
+    {
+        var a = CompiledExpression.Parse("${b}");
+        var b = CompiledExpression.Parse("${a}");
+        var scope = new VariableScope(new Dictionary<string, CompiledExpression> { ["a"] = a, ["b"] = b });
+        var context = new EvaluationContext().WithVariables(scope);
+
+        Assert.Throws<ExpressionEvaluationException>(() => a.EvaluateBoolean(context));
+    }
+
+    [Fact]
+    public void Variable_MalformedReference_ThrowsSyntaxException()
+    {
+        Assert.Throws<ExpressionSyntaxException>(() => CompiledExpression.Parse("${1abc}"));
+        Assert.Throws<ExpressionSyntaxException>(() => CompiledExpression.Parse("${abc"));
+    }
+
+    [Fact]
+    public void ReferencedVariableNames_CollectsAllReferences()
+    {
+        var expr = CompiledExpression.Parse("${a} && (!${b} || ${a})");
+
+        Assert.Equal(["a", "b", "a"], expr.ReferencedVariableNames);
+    }
+
+    [Fact]
+    public void ReferencedVariableNames_EmptyWhenNoVariables()
+    {
+        var expr = CompiledExpression.Parse("principal.department == 'finance'");
+
+        Assert.Empty(expr.ReferencedVariableNames);
+    }
 }

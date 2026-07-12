@@ -94,4 +94,118 @@ public class PolicyValidatorTests
 
         Assert.Equal(3, ex.Errors.Count);
     }
+
+    [Fact]
+    public void Validate_ValidVariablesAndDerivedRoles_DoesNotThrow()
+    {
+        var policy = ValidPolicy();
+        policy.Variables["isFinance"] = "principal.department == 'finance'";
+        policy.DerivedRoles["owner"] = new DerivedRoleDefinition { When = "principal.id == resource.ownerId" };
+        policy.Actions["view"].Allow!.When = "${isFinance}";
+
+        var exception = Record.Exception(() => PolicyValidator.Validate([policy]));
+
+        Assert.Null(exception);
+    }
+
+    [Fact]
+    public void Validate_UndefinedVariableInActionWhen_Throws()
+    {
+        var policy = ValidPolicy();
+        policy.Actions["approve"].Allow!.When = "${missing}";
+
+        var ex = Assert.Throws<PolicyValidationException>(() => PolicyValidator.Validate([policy]));
+
+        Assert.Single(ex.Errors);
+        Assert.Contains("missing", ex.Errors[0]);
+        Assert.Contains("approve", ex.Errors[0]);
+    }
+
+    [Fact]
+    public void Validate_UndefinedVariableInAnotherVariable_Throws()
+    {
+        var policy = ValidPolicy();
+        policy.Variables["isFinance"] = "${missing}";
+
+        var ex = Assert.Throws<PolicyValidationException>(() => PolicyValidator.Validate([policy]));
+
+        Assert.Single(ex.Errors);
+        Assert.Contains("isFinance", ex.Errors[0]);
+        Assert.Contains("missing", ex.Errors[0]);
+    }
+
+    [Fact]
+    public void Validate_UndefinedVariableInDerivedRole_Throws()
+    {
+        var policy = ValidPolicy();
+        policy.DerivedRoles["owner"] = new DerivedRoleDefinition { When = "${missing}" };
+
+        var ex = Assert.Throws<PolicyValidationException>(() => PolicyValidator.Validate([policy]));
+
+        Assert.Single(ex.Errors);
+        Assert.Contains("owner", ex.Errors[0]);
+        Assert.Contains("missing", ex.Errors[0]);
+    }
+
+    [Fact]
+    public void Validate_DerivedRoleWithoutWhen_ThrowsMentioningMissingCondition()
+    {
+        var policy = ValidPolicy();
+        policy.DerivedRoles["owner"] = new DerivedRoleDefinition { When = "" };
+
+        var ex = Assert.Throws<PolicyValidationException>(() => PolicyValidator.Validate([policy]));
+
+        Assert.Single(ex.Errors);
+        Assert.Contains("owner", ex.Errors[0]);
+    }
+
+    [Fact]
+    public void Validate_InvalidVariableExpression_ThrowsWithVariableNameInMessage()
+    {
+        var policy = ValidPolicy();
+        policy.Variables["isFinance"] = "principal.department ==";
+
+        var ex = Assert.Throws<PolicyValidationException>(() => PolicyValidator.Validate([policy]));
+
+        Assert.Single(ex.Errors);
+        Assert.Contains("isFinance", ex.Errors[0]);
+    }
+
+    [Fact]
+    public void Validate_InvalidDerivedRoleExpression_ThrowsWithRoleNameInMessage()
+    {
+        var policy = ValidPolicy();
+        policy.DerivedRoles["owner"] = new DerivedRoleDefinition { When = "principal.id ==" };
+
+        var ex = Assert.Throws<PolicyValidationException>(() => PolicyValidator.Validate([policy]));
+
+        Assert.Single(ex.Errors);
+        Assert.Contains("owner", ex.Errors[0]);
+    }
+
+    [Fact]
+    public void Validate_DirectSelfReferencingVariable_ThrowsCircularReferenceError()
+    {
+        var policy = ValidPolicy();
+        policy.Variables["isFinance"] = "${isFinance}";
+
+        var ex = Assert.Throws<PolicyValidationException>(() => PolicyValidator.Validate([policy]));
+
+        Assert.Single(ex.Errors);
+        Assert.Contains("circular", ex.Errors[0], StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("isFinance", ex.Errors[0]);
+    }
+
+    [Fact]
+    public void Validate_TransitiveCircularVariableReference_ThrowsCircularReferenceError()
+    {
+        var policy = ValidPolicy();
+        policy.Variables["a"] = "${b}";
+        policy.Variables["b"] = "${a}";
+
+        var ex = Assert.Throws<PolicyValidationException>(() => PolicyValidator.Validate([policy]));
+
+        Assert.Single(ex.Errors);
+        Assert.Contains("circular", ex.Errors[0], StringComparison.OrdinalIgnoreCase);
+    }
 }

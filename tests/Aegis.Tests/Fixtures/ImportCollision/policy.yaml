@@ -1,0 +1,12 @@
+resource: widgets
+
+imports:
+  - lib
+
+variables:
+  isFinance: "false"
+
+actions:
+  view:
+    allow:
+      when: ${isFinance}

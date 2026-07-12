@@ -6,6 +6,7 @@ internal static class Evaluator
     {
         LiteralExpr literal => literal.Value,
         MemberExpr member => ResolveMember(member, context),
+        VariableExpr variable => context.ResolveVariable(variable.Name),
         UnaryExpr unary => EvaluateUnary(unary, context),
         BinaryExpr binary => EvaluateBinary(binary, context),
         _ => throw new ExpressionEvaluationException($"Unsupported expression node '{expr.GetType().Name}'"),

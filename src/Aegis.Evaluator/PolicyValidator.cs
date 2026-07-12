@@ -8,11 +8,15 @@ namespace Aegis;
 /// surfaces once at startup instead of on the first request that happens
 /// to hit it. Checks (aggregated, not fail-fast):
 ///
-/// - every `when` expression parses;
+/// - every `when` expression -- action rules, derived roles, and variables
+///   themselves -- parses;
 /// - every action rule has a recognized effect (today, just `allow` --
 ///   an action listed with no matching key underneath it is almost always
 ///   a typo'd key, not an intentionally-empty rule, since YAML
 ///   deserialization silently drops unmatched properties);
+/// - every `${name}` reference resolves to a variable defined on the same
+///   policy (locally or via `imports`);
+/// - no variable's expression (transitively) references itself;
 /// - no two policies claim the same resource.
 /// </summary>
 public static class PolicyValidator
@@ -36,6 +40,51 @@ public static class PolicyValidator
                 resourceSources[policy.Resource] = source;
             }
 
+            var compiledVariables = new Dictionary<string, CompiledExpression>(StringComparer.Ordinal);
+
+            foreach (var (varName, varExpression) in policy.Variables)
+            {
+                try
+                {
+                    compiledVariables[varName] = CompiledExpression.Parse(varExpression);
+                }
+                catch (ExpressionSyntaxException ex)
+                {
+                    errors.Add(
+                        $"Resource '{policy.Resource}' ({source}), variable '${{{varName}}}': invalid expression " +
+                        $"'{varExpression}' -- {ex.Message}");
+                }
+            }
+
+            foreach (var (varName, compiled) in compiledVariables)
+            {
+                CheckUndefinedVariables(policy, source, $"variable '${{{varName}}}'", compiled, errors);
+            }
+
+            DetectVariableCycles(policy, source, compiledVariables, errors);
+
+            foreach (var (roleName, roleDefinition) in policy.DerivedRoles)
+            {
+                if (string.IsNullOrWhiteSpace(roleDefinition.When))
+                {
+                    errors.Add(
+                        $"Resource '{policy.Resource}' ({source}), derived role '{roleName}': missing 'when' condition.");
+                    continue;
+                }
+
+                try
+                {
+                    var compiled = CompiledExpression.Parse(roleDefinition.When);
+                    CheckUndefinedVariables(policy, source, $"derived role '{roleName}'", compiled, errors);
+                }
+                catch (ExpressionSyntaxException ex)
+                {
+                    errors.Add(
+                        $"Resource '{policy.Resource}' ({source}), derived role '{roleName}': invalid 'when' " +
+                        $"expression '{roleDefinition.When}' -- {ex.Message}");
+                }
+            }
+
             foreach (var (actionName, rule) in policy.Actions)
             {
                 if (rule.Allow is null)
@@ -53,7 +102,8 @@ public static class PolicyValidator
 
                 try
                 {
-                    CompiledExpression.Parse(rule.Allow.When);
+                    var compiled = CompiledExpression.Parse(rule.Allow.When);
+                    CheckUndefinedVariables(policy, source, $"action '{actionName}'", compiled, errors);
                 }
                 catch (ExpressionSyntaxException ex)
                 {
@@ -67,6 +117,75 @@ public static class PolicyValidator
         if (errors.Count > 0)
         {
             throw new PolicyValidationException(errors);
+        }
+    }
+
+    private static void CheckUndefinedVariables(
+        ResourcePolicy policy, string source, string location, CompiledExpression compiled, List<string> errors)
+    {
+        foreach (var name in compiled.ReferencedVariableNames.Distinct(StringComparer.Ordinal))
+        {
+            if (!policy.Variables.ContainsKey(name))
+            {
+                errors.Add(
+                    $"Resource '{policy.Resource}' ({source}), {location}: references undefined variable '${{{name}}}'.");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Depth-first cycle detection over the variable dependency graph
+    /// (edges only to variables that themselves compiled successfully --
+    /// an undefined reference is already reported by <see cref="CheckUndefinedVariables"/>
+    /// and shouldn't also produce a confusing "cycle").
+    /// </summary>
+    private static void DetectVariableCycles(
+        ResourcePolicy policy,
+        string source,
+        Dictionary<string, CompiledExpression> compiledVariables,
+        List<string> errors)
+    {
+        var state = new Dictionary<string, int>(StringComparer.Ordinal);
+        var path = new List<string>();
+
+        foreach (var name in compiledVariables.Keys)
+        {
+            if (!state.ContainsKey(name))
+            {
+                Visit(name);
+            }
+        }
+
+        void Visit(string name)
+        {
+            if (state.TryGetValue(name, out var visitState))
+            {
+                if (visitState == 1)
+                {
+                    var cycleStart = path.IndexOf(name);
+                    var cycle = string.Join(" -> ", path.Skip(cycleStart).Append(name));
+                    errors.Add($"Resource '{policy.Resource}' ({source}): circular variable reference: {cycle}");
+                }
+
+                return;
+            }
+
+            state[name] = 1;
+            path.Add(name);
+
+            if (compiledVariables.TryGetValue(name, out var compiled))
+            {
+                foreach (var dependency in compiled.ReferencedVariableNames.Distinct(StringComparer.Ordinal))
+                {
+                    if (compiledVariables.ContainsKey(dependency))
+                    {
+                        Visit(dependency);
+                    }
+                }
+            }
+
+            path.RemoveAt(path.Count - 1);
+            state[name] = 2;
         }
     }
 }

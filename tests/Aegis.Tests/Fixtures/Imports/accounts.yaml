@@ -1,0 +1,15 @@
+resource: accounts
+name: accounts-policy
+
+imports:
+  - common
+
+actions:
+  view:
+    allow:
+      when: ${isFinance}
+
+  manage:
+    allow:
+      roles:
+        - owner

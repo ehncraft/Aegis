@@ -1,0 +1,10 @@
+resource: widgets
+
+imports:
+  - nonexistent
+
+actions:
+  view:
+    allow:
+      roles:
+        - Finance

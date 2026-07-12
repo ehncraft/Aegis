@@ -1,6 +1,9 @@
 resource: loan_applications
 name: loan-application-policy
 
+imports:
+  - lending-common
+
 actions:
   view:
     allow:
@@ -9,8 +12,15 @@ actions:
 
   approve:
     allow:
-      # Branch-scoped ABAC (officer only approves loans in their own branch),
-      # a lending-limit check, and segregation of duties (an officer can
-      # never approve their own application) -- all expressed as one
-      # condition, no new engine features required.
-      when: principal.branch == resource.branch && resource.amount <= principal.approvalLimit && principal.id != resource.applicantId
+      # Branch-scoped ABAC, a lending-limit check, and segregation of duties
+      # (an officer can never approve their own application) -- the
+      # variables come from lending-common.yaml via `imports:` above.
+      when: ${sameBranch} && ${withinLimit} && !${isApplicant}
+
+  flag_conflict_of_interest:
+    allow:
+      # `applicant` is a derived role (see lending-common.yaml), not a
+      # static one -- it's computed per-request, but usable anywhere a
+      # static role name appears in a `roles:` list.
+      roles:
+        - applicant

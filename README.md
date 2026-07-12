@@ -20,15 +20,20 @@ validation, the expression engine, the decision engine, the explain API, DI/
 ASP.NET Core registration, and a CLI — is also done, except the compiler/IR
 pipeline described below, which is deliberately deferred: still a
 tree-walking interpreter, and that's a later optimization once the
-expression surface is stable. No relationships, no standalone server, no
-dashboard yet.
+expression surface is stable. Policies can also share reusable `${name}`
+variables and derived roles (roles computed from a condition rather than
+held directly by the principal) via `imports:` -- see
+[Policy as Code](#policy-as-code) below. No relationships, no standalone
+server, no dashboard yet.
 
 ```
 src/
   Aegis.Core          Principal, Resource, AuthorizationDecision, DecisionExplanation,
                       IAttributeProvider, IClaimsPrincipalMapper
   Aegis.Expressions    Tokenizer, parser, tree-walking evaluator for condition expressions
-  Aegis.Policies       ResourcePolicy/ActionRule/AllowRule model, IPolicyProvider, YAML loader
+                      (member paths, literals, `${name}` variable references)
+  Aegis.Policies       ResourcePolicy/ActionRule/AllowRule/DerivedRoleDefinition model,
+                      IPolicyProvider, YAML loader (variables/derivedRoles/imports)
   Aegis.Evaluator      PolicyEvaluator (decision engine), PolicyValidator, opt-in decision
                       caching (AegisEngine.WithDecisionCache), AegisEngine facade
   Aegis.Sql            SQL Server-backed IAttributeProvider + IPolicyProvider
@@ -69,10 +74,18 @@ if (decision.Allowed)
 ```yaml
 resource: loan_applications
 
+imports:
+  - lending-common   # shared variables/derived roles -- see lending-common.yaml
+
 actions:
   approve:
     allow:
-      when: principal.branch == resource.branch && resource.amount <= principal.approvalLimit && principal.id != resource.applicantId
+      when: ${sameBranch} && ${withinLimit} && !${isApplicant}
+
+  flag_conflict_of_interest:
+    allow:
+      roles:
+        - applicant   # a derived role from lending-common.yaml, not a static one
 ```
 
 Or via DI (`Aegis.AspNetCore`), authorizing straight off `HttpContext.User` --
@@ -227,6 +240,41 @@ actions:
 ```
 
 Policies become versioned, testable, and deployable through normal CI/CD pipelines.
+
+Repeated conditions can be named with `${name}` variables, and roles that
+depend on a condition rather than being held directly by the principal can
+be expressed as derived roles -- both shareable across policies via
+`imports:`:
+
+```yaml
+# lending-common.yaml -- a library: identified by `name:`, no `resource:` key
+name: lending-common
+
+variables:
+  sameBranch: principal.branch == resource.branch
+  isApplicant: principal.id == resource.applicantId
+
+derivedRoles:
+  applicant:
+    when: principal.id == resource.applicantId
+```
+
+```yaml
+resource: loan_applications
+
+imports:
+  - lending-common
+
+actions:
+  approve:
+    allow:
+      when: ${sameBranch} && !${isApplicant}
+
+  flag_conflict_of_interest:
+    allow:
+      roles:
+        - applicant
+```
 
 ---
 

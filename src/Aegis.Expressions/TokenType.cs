@@ -19,5 +19,6 @@ internal enum TokenType
     GreaterEqual,
     LParen,
     RParen,
+    Variable,
     Eof,
 }
