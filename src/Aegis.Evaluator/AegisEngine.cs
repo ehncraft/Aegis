@@ -16,24 +16,39 @@ public sealed class AegisEngine
         _attributeProviders = attributeProviders;
     }
 
-    /// <summary>Loads every YAML policy file in <paramref name="policiesDirectory"/>.</summary>
+    /// <summary>
+    /// Loads every YAML policy file in <paramref name="policiesDirectory"/>.
+    /// Validates before returning -- see <see cref="PolicyValidator"/> --
+    /// so a bad policy fails here, not on the first request that hits it.
+    /// </summary>
     public static AegisEngine Create(string policiesDirectory, params IAttributeProvider[] attributeProviders)
     {
         var policies = YamlPolicyLoader.LoadDirectory(policiesDirectory);
+        PolicyValidator.Validate(policies);
         return new AegisEngine(new PolicyEvaluator(policies), attributeProviders);
     }
 
+    /// <summary>Validates before returning; see <see cref="PolicyValidator"/>.</summary>
     public static AegisEngine FromPolicies(
-        IEnumerable<ResourcePolicy> policies, params IAttributeProvider[] attributeProviders) =>
-        new(new PolicyEvaluator(policies), attributeProviders);
+        IEnumerable<ResourcePolicy> policies, params IAttributeProvider[] attributeProviders)
+    {
+        var policyList = policies as IReadOnlyList<ResourcePolicy> ?? [.. policies];
+        PolicyValidator.Validate(policyList);
+        return new AegisEngine(new PolicyEvaluator(policyList), attributeProviders);
+    }
 
-    /// <summary>Loads policies from any <see cref="IPolicyProvider"/> -- a SQL Server table, etc.</summary>
+    /// <summary>
+    /// Loads policies from any <see cref="IPolicyProvider"/> -- a SQL
+    /// Server table, etc. Validates before returning; see
+    /// <see cref="PolicyValidator"/>.
+    /// </summary>
     public static async Task<AegisEngine> CreateAsync(
         IPolicyProvider policyProvider,
         IReadOnlyList<IAttributeProvider>? attributeProviders = null,
         CancellationToken cancellationToken = default)
     {
         var policies = await policyProvider.LoadPoliciesAsync(cancellationToken);
+        PolicyValidator.Validate(policies);
         return new AegisEngine(new PolicyEvaluator(policies), attributeProviders ?? []);
     }
 
