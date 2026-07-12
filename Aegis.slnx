@@ -10,6 +10,7 @@
     <Project Path="src/Aegis.Expressions/Aegis.Expressions.csproj" />
     <Project Path="src/Aegis.Policies/Aegis.Policies.csproj" />
     <Project Path="src/Aegis.Sql/Aegis.Sql.csproj" />
+    <Project Path="src/Aegis.Testing/Aegis.Testing.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Aegis.IntegrationTests/Aegis.IntegrationTests.csproj" />
