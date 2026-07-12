@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/ehncraft/Aegis/compare/v0.2.4...v0.3.0) (2026-07-12)
+
+
+### Features
+
+* MSSQL-backed attribute provider (closes [#27](https://github.com/ehncraft/Aegis/issues/27), [#34](https://github.com/ehncraft/Aegis/issues/34), [#35](https://github.com/ehncraft/Aegis/issues/35), [#36](https://github.com/ehncraft/Aegis/issues/36), [#37](https://github.com/ehncraft/Aegis/issues/37)) ([#63](https://github.com/ehncraft/Aegis/issues/63)) ([d6b0116](https://github.com/ehncraft/Aegis/commit/d6b01160b97a1ac6d8b5c104635bff0029f38b8d))
+
 ## [0.2.4](https://github.com/ehncraft/Aegis/compare/v0.2.3...v0.2.4) (2026-07-12)
 
 
