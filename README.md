@@ -16,11 +16,12 @@ below for how that shapes the design.
 
 Phase 0 (MSSQL + existing ASP.NET Identity/IdentityServer/OpenIddict auth
 server integration) is done. Phase 1's core engine slice — policy loading,
-the expression engine, the decision engine, the explain API, and now DI/
-ASP.NET Core registration — is also done. Deliberately still a tree-walking
-interpreter, not the compiler/IR pipeline described below — that's a later
-optimization once the expression surface is stable. No relationships, no
-standalone server, no dashboard yet.
+validation, the expression engine, the decision engine, the explain API, DI/
+ASP.NET Core registration, and a CLI — is also done, except the compiler/IR
+pipeline described below, which is deliberately deferred: still a
+tree-walking interpreter, and that's a later optimization once the
+expression surface is stable. No relationships, no standalone server, no
+dashboard yet.
 
 ```
 src/
@@ -28,9 +29,10 @@ src/
                       IAttributeProvider, IClaimsPrincipalMapper
   Aegis.Expressions    Tokenizer, parser, tree-walking evaluator for condition expressions
   Aegis.Policies       ResourcePolicy/ActionRule/AllowRule model, IPolicyProvider, YAML loader
-  Aegis.Evaluator      PolicyEvaluator (decision engine) + AegisEngine facade
+  Aegis.Evaluator      PolicyEvaluator (decision engine), PolicyValidator, AegisEngine facade
   Aegis.Sql            SQL Server-backed IAttributeProvider + IPolicyProvider
   Aegis.AspNetCore     services.AddAegis(...) DI registration, HttpContext.User authorization
+  Aegis.Cli            `aegis validate`/`aegis authorize` -- a dotnet tool (AegisCli)
 tests/
   Aegis.Tests          Fast, no external dependencies -- the required CI check
   Aegis.IntegrationTests   Real SQL Server via Testcontainers -- separate, non-required CI job
@@ -82,6 +84,21 @@ services.AddAegis(options => options.AddPolicies("Policies"));
 
 // in an endpoint/controller:
 var decision = await engine.AuthorizeAsync(HttpContext, loanApplication, "approve");
+```
+
+Or from the command line (`dotnet tool install -g AegisCli`, exposing an
+`aegis` command) -- useful in CI to catch a broken policy before it ships,
+or to sanity-check a decision without writing code:
+
+```bash
+aegis validate Policies
+
+aegis authorize Policies \
+  --principal-id officer-1 --role LoanOfficer \
+  --principal-attr branch=nairobi-cbd --principal-attr approvalLimit=500000 \
+  --resource-kind loan_applications --resource-id LN-1001 \
+  --resource-attr branch=nairobi-cbd --resource-attr amount=250000 --resource-attr applicantId=member-42 \
+  --action approve   # exit code 0 = allowed, 1 = denied, 2 = error; prints the explain JSON either way
 ```
 
 ## Compliance notes for regulated finance
