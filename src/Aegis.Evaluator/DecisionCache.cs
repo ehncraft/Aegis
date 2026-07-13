@@ -46,7 +46,22 @@ internal sealed class DecisionCache : IDisposable
 
     public void Dispose() => _cache.Dispose();
 
-    public static string BuildKey(AegisPrincipal principal, AegisResource resource, string action)
+    public static string BuildKey(AegisPrincipal principal, AegisResource resource, string action) =>
+        BuildKey(principal, resource, action, actionProperties: null, context: null);
+
+    /// <summary>
+    /// Includes <paramref name="actionProperties"/>/<paramref name="context"/>
+    /// in the key -- omitting them would let two calls with the same
+    /// principal/resource/action but different context collide onto the
+    /// same cache entry, serving a decision computed under the wrong
+    /// context.
+    /// </summary>
+    public static string BuildKey(
+        AegisPrincipal principal,
+        AegisResource resource,
+        string action,
+        IReadOnlyDictionary<string, object?>? actionProperties,
+        IReadOnlyDictionary<string, object?>? context)
     {
         var model = new CacheKeyModel(
             principal.Id,
@@ -55,7 +70,9 @@ internal sealed class DecisionCache : IDisposable
             resource.Kind,
             resource.Id,
             SortAttributes(resource.Attributes),
-            action);
+            action,
+            SortAttributes(actionProperties ?? new Dictionary<string, object?>()),
+            SortAttributes(context ?? new Dictionary<string, object?>()));
 
         return JsonSerializer.Serialize(model);
     }
@@ -70,5 +87,7 @@ internal sealed class DecisionCache : IDisposable
         string ResourceKind,
         string? ResourceId,
         SortedDictionary<string, object?> ResourceAttributes,
-        string Action);
+        string Action,
+        SortedDictionary<string, object?> ActionProperties,
+        SortedDictionary<string, object?> Context);
 }

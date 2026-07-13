@@ -109,4 +109,59 @@ public class AegisEngineDecisionCacheTests
 
         Assert.Equal(2, provider.CallCount);
     }
+
+    [Fact]
+    public async Task WithDecisionCache_DifferentActionProperties_IsACacheMissAsync()
+    {
+        var provider = new CountingAttributeProvider();
+        using var engine = AegisEngine.FromPolicies([Policy()], provider)
+            .WithDecisionCache(new DecisionCacheOptions { Duration = TimeSpan.FromMinutes(1) });
+        var principal = AegisPrincipal.Create("alice", roles: ["Finance"]);
+        var resource = AegisResource.Create("invoices", "INV-1");
+
+        await engine.AuthorizeAsync(
+            principal, resource, "view", new Dictionary<string, object?> { ["reason"] = "a" }, context: null);
+        await engine.AuthorizeAsync(
+            principal, resource, "view", new Dictionary<string, object?> { ["reason"] = "b" }, context: null);
+
+        Assert.Equal(2, provider.CallCount);
+    }
+
+    [Fact]
+    public async Task WithDecisionCache_DifferentContext_IsACacheMissAsync()
+    {
+        var provider = new CountingAttributeProvider();
+        using var engine = AegisEngine.FromPolicies([Policy()], provider)
+            .WithDecisionCache(new DecisionCacheOptions { Duration = TimeSpan.FromMinutes(1) });
+        var principal = AegisPrincipal.Create("alice", roles: ["Finance"]);
+        var resource = AegisResource.Create("invoices", "INV-1");
+
+        await engine.AuthorizeAsync(
+            principal, resource, "view", actionProperties: null, new Dictionary<string, object?> { ["mfa"] = true });
+        await engine.AuthorizeAsync(
+            principal, resource, "view", actionProperties: null, new Dictionary<string, object?> { ["mfa"] = false });
+
+        Assert.Equal(2, provider.CallCount);
+    }
+
+    [Fact]
+    public async Task WithDecisionCache_SameActionPropertiesAndContext_IsACacheHitAsync()
+    {
+        var provider = new CountingAttributeProvider();
+        using var engine = AegisEngine.FromPolicies([Policy()], provider)
+            .WithDecisionCache(new DecisionCacheOptions { Duration = TimeSpan.FromMinutes(1) });
+        var principal = AegisPrincipal.Create("alice", roles: ["Finance"]);
+        var resource = AegisResource.Create("invoices", "INV-1");
+
+        await engine.AuthorizeAsync(
+            principal, resource, "view",
+            new Dictionary<string, object?> { ["reason"] = "audit" },
+            new Dictionary<string, object?> { ["mfa"] = true });
+        await engine.AuthorizeAsync(
+            principal, resource, "view",
+            new Dictionary<string, object?> { ["reason"] = "audit" },
+            new Dictionary<string, object?> { ["mfa"] = true });
+
+        Assert.Equal(1, provider.CallCount);
+    }
 }

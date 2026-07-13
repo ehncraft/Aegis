@@ -324,4 +324,66 @@ public class PolicyEvaluatorTests
 
         Assert.True(decision.Allowed);
     }
+
+    [Fact]
+    public void ActionProperties_ResolveAlongsideActionName()
+    {
+        var policy = new ResourcePolicy
+        {
+            Resource = "invoices",
+            Actions = new Dictionary<string, ActionRule>
+            {
+                ["approve"] = new() { Allow = new AllowRule { When = "action.name == 'approve' && action.reason == 'audit'" } },
+            },
+        };
+        var evaluator = new PolicyEvaluator([policy]);
+        var principal = AegisPrincipal.Create("alice");
+        var resource = AegisResource.Create("invoices", "INV-1");
+        var actionProperties = new Dictionary<string, object?> { ["reason"] = "audit" };
+
+        var decision = evaluator.Authorize(principal, resource, "approve", actionProperties, context: null);
+
+        Assert.True(decision.Allowed);
+    }
+
+    [Fact]
+    public void Context_ResolvesAsATopLevelScope()
+    {
+        var policy = new ResourcePolicy
+        {
+            Resource = "invoices",
+            Actions = new Dictionary<string, ActionRule>
+            {
+                ["approve"] = new() { Allow = new AllowRule { When = "context.mfaVerified == true" } },
+            },
+        };
+        var evaluator = new PolicyEvaluator([policy]);
+        var principal = AegisPrincipal.Create("alice");
+        var resource = AegisResource.Create("invoices", "INV-1");
+        var context = new Dictionary<string, object?> { ["mfaVerified"] = true };
+
+        var decision = evaluator.Authorize(principal, resource, "approve", actionProperties: null, context);
+
+        Assert.True(decision.Allowed);
+    }
+
+    [Fact]
+    public void Context_Unset_UnresolvedMemberEvaluatesFalseNotError()
+    {
+        var policy = new ResourcePolicy
+        {
+            Resource = "invoices",
+            Actions = new Dictionary<string, ActionRule>
+            {
+                ["approve"] = new() { Allow = new AllowRule { When = "context.mfaVerified == true" } },
+            },
+        };
+        var evaluator = new PolicyEvaluator([policy]);
+        var principal = AegisPrincipal.Create("alice");
+        var resource = AegisResource.Create("invoices", "INV-1");
+
+        var decision = evaluator.Authorize(principal, resource, "approve");
+
+        Assert.False(decision.Allowed);
+    }
 }
