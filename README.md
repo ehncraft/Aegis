@@ -24,7 +24,9 @@ expression surface is stable. Policies can also share reusable `${name}`
 variables and derived roles (roles computed from a condition, or from
 Cedar-style entity-hierarchy membership, rather than held directly by the
 principal) via `imports:` -- see [Policy as Code](#policy-as-code) below.
-No standalone server, no dashboard yet.
+`Aegis.Dashboard` is a Blazor Server admin UI for browsing policies,
+relationships, and decision history -- no policy editor yet (that's #22,
+and needs the compiler/IR pipeline's live-validation first).
 
 ```
 src/
@@ -48,6 +50,8 @@ src/
   Aegis.Cli            `aegis validate`/`aegis authorize` -- a dotnet tool (AegisCli)
   Aegis.Testing        ShouldAllowAsync/ShouldDenyAsync -- CI-friendly policy regression tests,
                       no application host required
+  Aegis.Dashboard      Blazor Server admin UI -- browse policies, relationships, decision
+                      history (#21)
 tests/
   Aegis.Tests          Fast, no external dependencies -- the required CI check
   Aegis.IntegrationTests   Real SQL Server via Testcontainers -- separate, non-required CI job
@@ -171,6 +175,16 @@ var engine = AegisEngine.Create("Policies")
 
 var recent = await auditLogStore.QueryAsync(new AuditLogQuery { PrincipalId = "officer-1" });
 ```
+
+Or browse policies, relationships, and decision history in a UI (`Aegis.Dashboard`):
+
+```bash
+dotnet run --project src/Aegis.Dashboard   # runs out of the box against the same SACCO sample data
+```
+
+Configure `Aegis:PoliciesDirectory`/`Aegis:RelationshipsDirectory`/`Aegis:AuditLog:ConnectionString`
+in `appsettings.json` to point it at a real deployment; every setting is
+optional and shows an empty/not-configured state rather than failing to start.
 
 ## Compliance notes for regulated finance
 

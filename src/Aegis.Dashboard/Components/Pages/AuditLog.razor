@@ -1,0 +1,142 @@
+@page "/audit-log"
+@inject IAuditLogStore AuditLogStore
+@inject AuditLogStatus AuditStatus
+
+<PageTitle>Decision History</PageTitle>
+
+<h1>Decision History</h1>
+
+@if (!AuditStatus.IsPersistent)
+{
+    <div class="notice">
+        No SQL audit store configured (<code>Aegis:AuditLog:ConnectionString</code>) -- showing an empty
+        in-memory placeholder. Only decisions recorded by <em>this</em> process since it started would
+        appear here.
+    </div>
+}
+
+<div class="filters">
+    <label>Principal ID
+        <input @bind="_principalId" />
+    </label>
+    <label>Resource kind
+        <input @bind="_resourceKind" />
+    </label>
+    <label>Resource ID
+        <input @bind="_resourceId" />
+    </label>
+    <label>Action
+        <input @bind="_action" />
+    </label>
+    <label>Decision
+        <select @bind="_allowed">
+            <option value="">Any</option>
+            <option value="true">Allow</option>
+            <option value="false">Deny</option>
+        </select>
+    </label>
+    <label>From
+        <input type="datetime-local" @bind="_from" />
+    </label>
+    <label>To
+        <input type="datetime-local" @bind="_to" />
+    </label>
+    <label>Limit
+        <input type="number" @bind="_limit" min="1" max="1000" />
+    </label>
+    <button @onclick="SearchAsync">Search</button>
+</div>
+
+@if (_results is null)
+{
+    <p>Loading&hellip;</p>
+}
+else if (_results.Count == 0)
+{
+    <div class="notice">No decisions match these filters.</div>
+}
+else
+{
+    <p>@_results.Count result(s).</p>
+    <table>
+        <thead>
+            <tr><th>Timestamp (UTC)</th><th>Principal</th><th>Resource</th><th>Action</th><th>Decision</th><th></th></tr>
+        </thead>
+        <tbody>
+            @foreach (var entry in _results)
+            {
+                <tr>
+                    <td>@entry.Timestamp.UtcDateTime.ToString("u")</td>
+                    <td>@entry.PrincipalId</td>
+                    <td>@entry.ResourceKind@(entry.ResourceId is not null ? $"/{entry.ResourceId}" : "")</td>
+                    <td>@entry.Action</td>
+                    <td><span class="badge @(entry.Allowed ? "allow" : "deny")">@(entry.Allowed ? "allow" : "deny")</span></td>
+                    <td>
+                        <details>
+                            <summary>explain</summary>
+                            <pre>@FormatExplanation(entry.Explanation)</pre>
+                        </details>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private string? _principalId;
+    private string? _resourceKind;
+    private string? _resourceId;
+    private string? _action;
+    private string _allowed = "";
+    private DateTime? _from;
+    private DateTime? _to;
+    private int _limit = 100;
+    private IReadOnlyList<AuditLogEntry>? _results;
+
+    protected override async Task OnInitializedAsync() => await SearchAsync();
+
+    private async Task SearchAsync()
+    {
+        var query = new AuditLogQuery
+        {
+            PrincipalId = string.IsNullOrWhiteSpace(_principalId) ? null : _principalId,
+            ResourceKind = string.IsNullOrWhiteSpace(_resourceKind) ? null : _resourceKind,
+            ResourceId = string.IsNullOrWhiteSpace(_resourceId) ? null : _resourceId,
+            Action = string.IsNullOrWhiteSpace(_action) ? null : _action,
+            Allowed = _allowed switch { "true" => true, "false" => false, _ => null },
+            From = _from.HasValue ? new DateTimeOffset(_from.Value, TimeSpan.Zero) : null,
+            To = _to.HasValue ? new DateTimeOffset(_to.Value, TimeSpan.Zero) : null,
+            Limit = _limit,
+        };
+
+        _results = await AuditLogStore.QueryAsync(query);
+    }
+
+    private static string FormatExplanation(DecisionExplanation explanation)
+    {
+        var lines = new List<string> { $"Effect: {explanation.Effect}" };
+
+        if (explanation.MatchedPolicy is not null)
+        {
+            lines.Add($"Matched policy: {explanation.MatchedPolicy}");
+        }
+
+        if (explanation.MatchedRule is not null)
+        {
+            lines.Add($"Matched rule: {explanation.MatchedRule}");
+        }
+
+        if (explanation.Reason is not null)
+        {
+            lines.Add($"Reason: {explanation.Reason}");
+        }
+
+        foreach (var condition in explanation.Conditions)
+        {
+            lines.Add($"  {condition.Expression} => {condition.Result}");
+        }
+
+        return string.Join("\n", lines);
+    }
+}

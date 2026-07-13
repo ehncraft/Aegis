@@ -1,0 +1,122 @@
+@page "/policies"
+@inject PolicyBrowserService PolicyBrowser
+
+<PageTitle>Policies</PageTitle>
+
+<h1>Policies</h1>
+
+@if (!PolicyBrowser.IsConfigured)
+{
+    <div class="notice">
+        No policies directory configured -- set <code>Aegis:PoliciesDirectory</code> in <code>appsettings.json</code>.
+    </div>
+}
+else if (PolicyBrowser.LoadError is not null)
+{
+    <div class="notice error">Failed to load policies: @PolicyBrowser.LoadError</div>
+}
+else if (PolicyBrowser.Policies.Count == 0)
+{
+    <div class="notice">No policy files found in the configured directory.</div>
+}
+else
+{
+    @foreach (var policy in PolicyBrowser.Policies.OrderBy(p => p.Resource, StringComparer.OrdinalIgnoreCase))
+    {
+        <details open>
+            <summary>
+                <strong>@policy.Resource</strong>
+                @if (policy.Name is not null)
+                {
+                    <span> (@policy.Name)</span>
+                }
+            </summary>
+
+            @if (policy.Imports.Count > 0)
+            {
+                <p><em>Imports:</em> @string.Join(", ", policy.Imports)</p>
+            }
+
+            @if (policy.Variables.Count > 0)
+            {
+                <h4>Variables</h4>
+                <table>
+                    <thead><tr><th>Name</th><th>Expression</th></tr></thead>
+                    <tbody>
+                        @foreach (var (name, expression) in policy.Variables)
+                        {
+                            <tr>
+                                <td><code>${@name}</code></td>
+                                <td><code>@expression</code></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+
+            @if (policy.DerivedRoles.Count > 0)
+            {
+                <h4>Derived roles</h4>
+                <table>
+                    <thead><tr><th>Name</th><th>Definition</th></tr></thead>
+                    <tbody>
+                        @foreach (var (name, role) in policy.DerivedRoles)
+                        {
+                            <tr>
+                                <td><code>@name</code></td>
+                                <td>
+                                    @if (role.When is not null)
+                                    {
+                                        <span>when: <code>@role.When</code></span>
+                                    }
+                                    else if (role.In is not null)
+                                    {
+                                        <span>in: <code>@role.In.Type::@role.In.Id</code></span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+
+            <h4>Actions</h4>
+            <table>
+                <thead><tr><th>Action</th><th>Roles</th><th>When</th></tr></thead>
+                <tbody>
+                    @foreach (var (actionName, rule) in policy.Actions)
+                    {
+                        <tr>
+                            <td><code>@actionName</code></td>
+                            <td>
+                                @if (rule.Allow?.Roles is { Count: > 0 } roles)
+                                {
+                                    @string.Join(", ", roles)
+                                }
+                                else
+                                {
+                                    <span>—</span>
+                                }
+                            </td>
+                            <td>
+                                @if (rule.Allow?.When is not null)
+                                {
+                                    <code>@rule.Allow.When</code>
+                                }
+                                else
+                                {
+                                    <span>—</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+
+            @if (policy.Source is not null)
+            {
+                <p><small>Source: @policy.Source</small></p>
+            }
+        </details>
+    }
+}

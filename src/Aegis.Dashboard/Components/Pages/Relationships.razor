@@ -1,0 +1,54 @@
+@page "/relationships"
+@inject RelationshipBrowserService RelationshipBrowser
+
+<PageTitle>Relationships</PageTitle>
+
+<h1>Relationships</h1>
+
+@if (!RelationshipBrowser.IsConfigured)
+{
+    <div class="notice">
+        No relationships directory configured -- set <code>Aegis:RelationshipsDirectory</code> in <code>appsettings.json</code>.
+    </div>
+}
+else if (_entityParents is null)
+{
+    <p>Loading&hellip;</p>
+}
+else if (RelationshipBrowser.LoadError is not null)
+{
+    <div class="notice error">Failed to load relationships: @RelationshipBrowser.LoadError</div>
+}
+else if (_entityParents.Count == 0)
+{
+    <div class="notice">No entity-parent facts found in the configured directory.</div>
+}
+else
+{
+    <p>
+        @_entityParents.Count entity-hierarchy fact(s) -- each row means the child is <code>in</code> the
+        parent (Cedar's <code>in</code> operator), directly or transitively through further facts below it.
+    </p>
+    <table>
+        <thead><tr><th>Child</th><th></th><th>Parent</th></tr></thead>
+        <tbody>
+            @foreach (var fact in _entityParents.OrderBy(f => f.Child.Type).ThenBy(f => f.Child.Id))
+            {
+                <tr>
+                    <td><code>@fact.Child</code></td>
+                    <td>in</td>
+                    <td><code>@fact.Parent</code></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private IReadOnlyList<EntityParent>? _entityParents;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _entityParents = await RelationshipBrowser.GetEntityParentsAsync();
+    }
+}

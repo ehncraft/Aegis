@@ -1,0 +1,35 @@
+@page "/"
+@inject PolicyBrowserService PolicyBrowser
+@inject RelationshipBrowserService RelationshipBrowser
+@inject IAuditLogStore AuditLogStore
+
+<PageTitle>Aegis Dashboard</PageTitle>
+
+<h1>Aegis Dashboard</h1>
+<p>Browse loaded policies, the relationship graph, and decision history for this Aegis deployment.</p>
+
+<div class="stat-cards">
+    <div class="stat-card">
+        <div class="value">@(PolicyBrowser.IsConfigured ? PolicyBrowser.Policies.Count.ToString() : "—")</div>
+        <div class="label"><a href="/policies">Policies</a></div>
+    </div>
+    <div class="stat-card">
+        <div class="value">@(_entityParentCount?.ToString() ?? "…")</div>
+        <div class="label"><a href="/relationships">Relationship facts</a></div>
+    </div>
+    <div class="stat-card">
+        <div class="value">@(_recentDecisionCount?.ToString() ?? "…")</div>
+        <div class="label"><a href="/audit-log">Recent decisions</a></div>
+    </div>
+</div>
+
+@code {
+    private int? _entityParentCount;
+    private int? _recentDecisionCount;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _entityParentCount = (await RelationshipBrowser.GetEntityParentsAsync()).Count;
+        _recentDecisionCount = (await AuditLogStore.QueryAsync(new AuditLogQuery { Limit = 1000 })).Count;
+    }
+}
