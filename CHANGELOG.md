@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.9.0](https://github.com/ehncraft/Aegis/compare/v0.8.0...v0.9.0) (2026-07-13)
+
+
+### Features
+
+* AuthZEN Authorization API 1.0 server (closes [#20](https://github.com/ehncraft/Aegis/issues/20)) ([#85](https://github.com/ehncraft/Aegis/issues/85)) ([53af2a1](https://github.com/ehncraft/Aegis/commit/53af2a1b5c0535593c57ac681553596ba017e932))
+* multi-tenancy via structural per-tenant isolation (closes [#19](https://github.com/ehncraft/Aegis/issues/19)) ([#83](https://github.com/ehncraft/Aegis/issues/83)) ([c4b467f](https://github.com/ehncraft/Aegis/commit/c4b467f5ac2ae346ce72d3aa5fee6cf4bb87f552))
+* persisted audit logs (closes [#23](https://github.com/ehncraft/Aegis/issues/23)) ([#86](https://github.com/ehncraft/Aegis/issues/86)) ([be298f3](https://github.com/ehncraft/Aegis/commit/be298f34b88dc35055f57ad0bb0f2d9ea0211910))
+
 ## [0.8.0](https://github.com/ehncraft/Aegis/compare/v0.7.0...v0.8.0) (2026-07-13)
 
 
