@@ -1,0 +1,18 @@
+entities:
+  - uid:
+      type: User
+      id: alice
+    parents:
+      - type: Group
+        id: senior-auditors
+
+  - uid:
+      type: Group
+      id: senior-auditors
+    parents:
+      - type: Group
+        id: audit-committee
+
+  - uid:
+      type: Group
+      id: audit-committee

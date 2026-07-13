@@ -4,6 +4,16 @@ name: loan-application-policy
 imports:
   - lending-common
 
+derivedRoles:
+  # ReBAC, not ABAC: `committeeMember` isn't a condition over attributes,
+  # it's entity-hierarchy membership (Cedar's `in` operator) -- true for
+  # anyone reachable from the audit committee's Group entity through the
+  # Relationships/*.yaml data, directly or via nested groups.
+  committeeMember:
+    in:
+      type: Group
+      id: "'audit-committee'"
+
 actions:
   view:
     allow:
@@ -24,3 +34,8 @@ actions:
       # static role name appears in a `roles:` list.
       roles:
         - applicant
+
+  review:
+    allow:
+      roles:
+        - committeeMember
