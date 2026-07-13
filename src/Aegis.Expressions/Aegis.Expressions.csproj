@@ -5,7 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <PackageId>AegisExpressions</PackageId>
-    <Description>Condition-expression parser and tree-walking evaluator for Aegis policy rules.</Description>
+    <Description>Condition-expression parser, IR compiler, and evaluator for Aegis policy rules.</Description>
   </PropertyGroup>
 
   <ItemGroup>
