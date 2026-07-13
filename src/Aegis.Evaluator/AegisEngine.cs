@@ -97,13 +97,31 @@ public sealed class AegisEngine : IDisposable
     /// the cache's <see cref="DecisionCacheOptions.Duration"/> skips both
     /// enrichment and evaluation.
     /// </summary>
+    public Task<AuthorizationDecision> AuthorizeAsync(
+        AegisPrincipal principal,
+        AegisResource resource,
+        string action,
+        CancellationToken cancellationToken = default) =>
+        AuthorizeAsync(principal, resource, action, actionProperties: null, context: null, cancellationToken);
+
+    /// <summary>
+    /// <paramref name="actionProperties"/>/<paramref name="context"/> flow
+    /// into the <c>action</c>/<c>context</c> expression scopes -- see
+    /// <see cref="PolicyEvaluator.Authorize(AegisPrincipal, AegisResource, string, IReadOnlyDictionary{string, object?}?, IReadOnlyDictionary{string, object?}?)"/>.
+    /// Primarily for <c>Aegis.AuthZen</c>, whose request shape carries both,
+    /// but usable from any caller.
+    /// </summary>
     public async Task<AuthorizationDecision> AuthorizeAsync(
         AegisPrincipal principal,
         AegisResource resource,
         string action,
+        IReadOnlyDictionary<string, object?>? actionProperties,
+        IReadOnlyDictionary<string, object?>? context,
         CancellationToken cancellationToken = default)
     {
-        var cacheKey = _cache is null ? null : DecisionCache.BuildKey(principal, resource, action);
+        var cacheKey = _cache is null
+            ? null
+            : DecisionCache.BuildKey(principal, resource, action, actionProperties, context);
         if (cacheKey is not null && _cache!.TryGet(cacheKey, out var cachedDecision))
         {
             return cachedDecision;
@@ -111,7 +129,7 @@ public sealed class AegisEngine : IDisposable
 
         principal = await AttributeEnricher.EnrichAsync(principal, _attributeProviders, cancellationToken);
         resource = await AttributeEnricher.EnrichAsync(resource, _attributeProviders, cancellationToken);
-        var decision = _evaluator.Authorize(principal, resource, action);
+        var decision = _evaluator.Authorize(principal, resource, action, actionProperties, context);
 
         if (cacheKey is not null)
         {

@@ -4,6 +4,7 @@
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/Aegis.AspNetCore/Aegis.AspNetCore.csproj" />
+    <Project Path="src/Aegis.AuthZen/Aegis.AuthZen.csproj" />
     <Project Path="src/Aegis.Cli/Aegis.Cli.csproj" />
     <Project Path="src/Aegis.Core/Aegis.Core.csproj" />
     <Project Path="src/Aegis.Evaluator/Aegis.Evaluator.csproj" />

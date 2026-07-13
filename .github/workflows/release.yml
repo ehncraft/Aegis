@@ -82,6 +82,7 @@ jobs:
           dotnet pack src/Aegis.Evaluator/Aegis.Evaluator.csproj -c Release --no-build -p:Version=${{ env.PACKAGE_VERSION }} -o ./nupkgs
           dotnet pack src/Aegis.Sql/Aegis.Sql.csproj -c Release --no-build -p:Version=${{ env.PACKAGE_VERSION }} -o ./nupkgs
           dotnet pack src/Aegis.AspNetCore/Aegis.AspNetCore.csproj -c Release --no-build -p:Version=${{ env.PACKAGE_VERSION }} -o ./nupkgs
+          dotnet pack src/Aegis.AuthZen/Aegis.AuthZen.csproj -c Release --no-build -p:Version=${{ env.PACKAGE_VERSION }} -o ./nupkgs
           dotnet pack src/Aegis.Cli/Aegis.Cli.csproj -c Release --no-build -p:Version=${{ env.PACKAGE_VERSION }} -o ./nupkgs
           dotnet pack src/Aegis.Testing/Aegis.Testing.csproj -c Release --no-build -p:Version=${{ env.PACKAGE_VERSION }} -o ./nupkgs
 

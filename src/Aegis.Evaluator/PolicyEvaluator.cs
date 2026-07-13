@@ -30,7 +30,22 @@ public sealed class PolicyEvaluator
             p => p.Resource, BuildVariableScope, StringComparer.OrdinalIgnoreCase);
     }
 
-    public AuthorizationDecision Authorize(AegisPrincipal principal, AegisResource resource, string action)
+    public AuthorizationDecision Authorize(AegisPrincipal principal, AegisResource resource, string action) =>
+        Authorize(principal, resource, action, actionProperties: null, context: null);
+
+    /// <summary>
+    /// <paramref name="actionProperties"/> merge into the existing
+    /// <c>action</c> expression scope alongside <c>action.name</c>;
+    /// <paramref name="context"/> becomes a new top-level <c>context</c>
+    /// scope. Both exist primarily for <c>Aegis.AuthZen</c>, whose request
+    /// shape carries them, but either is usable from any caller.
+    /// </summary>
+    public AuthorizationDecision Authorize(
+        AegisPrincipal principal,
+        AegisResource resource,
+        string action,
+        IReadOnlyDictionary<string, object?>? actionProperties,
+        IReadOnlyDictionary<string, object?>? context)
     {
         if (!_policiesByResource.TryGetValue(resource.Kind, out var policy))
         {
@@ -55,17 +70,18 @@ public sealed class PolicyEvaluator
 
         var conditions = new List<ConditionExplanation>();
         var allowed = false;
-        var context = BuildContext(principal, resource, action, _variableScopesByResource[policy.Resource]);
+        var evaluationContext = BuildContext(
+            principal, resource, action, actionProperties, context, _variableScopesByResource[policy.Resource]);
 
         if (rule.Allow.Roles is { Count: > 0 } roles)
         {
-            allowed |= EvaluateRoles(roles, policy, principal, context, conditions);
+            allowed |= EvaluateRoles(roles, policy, principal, evaluationContext, conditions);
         }
 
         if (!string.IsNullOrWhiteSpace(rule.Allow.When))
         {
             var compiled = GetOrCompile(rule.Allow.When);
-            var whenResult = compiled.EvaluateBoolean(context);
+            var whenResult = compiled.EvaluateBoolean(evaluationContext);
             conditions.Add(new ConditionExplanation { Expression = compiled.Source, Result = whenResult });
             allowed |= whenResult;
         }
@@ -189,7 +205,12 @@ public sealed class PolicyEvaluator
     }
 
     private static EvaluationContext BuildContext(
-        AegisPrincipal principal, AegisResource resource, string action, VariableScope variableScope)
+        AegisPrincipal principal,
+        AegisResource resource,
+        string action,
+        IReadOnlyDictionary<string, object?>? actionProperties,
+        IReadOnlyDictionary<string, object?>? context,
+        VariableScope variableScope)
     {
         var principalScope = new Dictionary<string, object?>(principal.Attributes)
         {
@@ -204,11 +225,25 @@ public sealed class PolicyEvaluator
         };
 
         var actionScope = new Dictionary<string, object?> { ["name"] = action };
+        if (actionProperties is not null)
+        {
+            foreach (var (key, value) in actionProperties)
+            {
+                actionScope[key] = value;
+            }
+        }
 
-        return new EvaluationContext()
+        var evaluationContext = new EvaluationContext()
             .WithScope("principal", principalScope)
             .WithScope("resource", resourceScope)
             .WithScope("action", actionScope)
             .WithVariables(variableScope);
+
+        if (context is not null)
+        {
+            evaluationContext.WithScope("context", context);
+        }
+
+        return evaluationContext;
     }
 }

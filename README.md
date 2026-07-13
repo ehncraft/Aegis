@@ -42,6 +42,7 @@ src/
   Aegis.Sql            SQL Server-backed IAttributeProvider + IPolicyProvider, both with
                       optional per-tenant scoping
   Aegis.AspNetCore     services.AddAegis(...) DI registration, HttpContext.User authorization
+  Aegis.AuthZen        MapAuthZenEndpoints() -- Authorization API 1.0 evaluation endpoints, #20
   Aegis.Cli            `aegis validate`/`aegis authorize` -- a dotnet tool (AegisCli)
   Aegis.Testing        ShouldAllowAsync/ShouldDenyAsync -- CI-friendly policy regression tests,
                       no application host required
@@ -145,6 +146,17 @@ the first time that tenant is requested:
 var registry = MultiTenantAegisEngine.FromTenantDirectories("Tenants"); // Tenants/{tenantId}/*.yaml
 
 var decision = await registry.AuthorizeAsync("acme-sacco", officer, loanApplication, "approve");
+```
+
+Or as a standards-based HTTP API (`Aegis.AuthZen`) -- see
+[AuthZEN Compatibility](#authzen-compatibility) below:
+
+```csharp
+services.AddAegis(options => options.AddPolicies("Policies"));
+
+var app = builder.Build();
+app.MapAuthZenEndpoints(); // POST /access/v1/evaluation, POST /access/v1/evaluations
+app.Run();
 ```
 
 ## Compliance notes for regulated finance
@@ -670,27 +682,60 @@ storage.
 
 # AuthZEN Compatibility
 
-Aegis should expose a standards-based authorization API — see the
-[Authorization API 1.0 specification](https://openid.github.io/authzen/)
-from the OpenID Foundation's AuthZEN Working Group (tracked in #20).
+`Aegis.AuthZen` exposes the [Authorization API 1.0](https://openid.github.io/authzen/)
+specification's evaluation endpoints from the OpenID Foundation's AuthZEN
+Working Group, mapped directly onto an `AegisEngine` resolved from DI
+(register one first, e.g. via `Aegis.AspNetCore`'s `services.AddAegis(...)`):
 
-```
-Application
-
-↓
-
-AuthZEN Request
-
-↓
-
-Aegis Runtime
-
-↓
-
-Authorization Decision
+```csharp
+app.MapAuthZenEndpoints(); // defaults to the spec's /access/v1 prefix
 ```
 
-The runtime should remain independent of transport protocols.
+- **`POST /access/v1/evaluation`** -- single decision.
+- **`POST /access/v1/evaluations`** -- batch, with `options.evaluations_semantic`
+  (`execute_all` default, `deny_on_first_deny`, `permit_on_first_permit`) --
+  the latter two short-circuit and return a partial results array, per the
+  spec's own example.
+
+The spec's search endpoints (subject/resource/action search -- "which
+resources can this subject act on") aren't mapped: they need entity
+enumeration Aegis has no capability for yet, so those routes just 404.
+
+```json
+{
+  "subject": { "type": "user", "id": "alice", "properties": { "roles": ["Finance"] } },
+  "resource": { "type": "invoices", "id": "INV-1" },
+  "action": { "name": "view" }
+}
+```
+
+`subject.type`/`resource.type` map onto `AegisResource.Kind`-equivalent
+concepts, and `subject.properties.roles` (a JSON array of strings) becomes
+`AegisPrincipal.Roles` -- AuthZEN itself has no first-class RBAC notion, so
+this is Aegis's own convention, documented here rather than left implicit.
+Every other property becomes an attribute. The response's `context` field
+(optional per spec) carries Aegis's own `DecisionExplanation`, so an AuthZEN
+caller gets the matched policy/rule and every condition's result for free,
+not just a bare boolean.
+
+`action.properties` and the request's top-level `context` flow all the way
+into policy evaluation too -- `action.properties` merges into the existing
+`action` expression scope (alongside `action.name`), and `context` becomes
+a new top-level `context` scope, both via a new `AegisEngine.AuthorizeAsync`
+overload usable from any caller, not just AuthZEN:
+
+```yaml
+when: action.reason == 'audit' && context.mfa_verified == true
+```
+
+One wire-format subtlety: `subject`/`resource`/`action`/`decision` (Aegis's
+own DTO field names) are serialized snake_case per the spec, but
+`properties`/`context` are passthrough key-value bags -- whatever key a
+caller sends is the key a policy sees, unaffected by any naming convention.
+
+The runtime remains independent of transport protocols -- `Aegis.AuthZen`
+is one HTTP-shaped adapter over the same `AegisEngine` every other
+integration uses, not a special code path.
 
 ---
 
