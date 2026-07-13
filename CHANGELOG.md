@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0](https://github.com/ehncraft/Aegis/compare/v0.9.0...v0.10.0) (2026-07-13)
+
+
+### Features
+
+* Aegis.Dashboard -- browse policies, relationships, decision history (closes [#21](https://github.com/ehncraft/Aegis/issues/21)) ([#87](https://github.com/ehncraft/Aegis/issues/87)) ([b63abbd](https://github.com/ehncraft/Aegis/commit/b63abbd7993471e5d6a716cebf99bb77787fc6cc))
+
 ## [0.9.0](https://github.com/ehncraft/Aegis/compare/v0.8.0...v0.9.0) (2026-07-13)
 
 
