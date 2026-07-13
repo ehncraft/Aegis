@@ -37,8 +37,10 @@ src/
   Aegis.Relationships  Cedar-style entity hierarchy (EntityUid/EntityParent), pluggable
                       IRelationshipProvider, RelationshipGraph (`in` membership, #15-#18)
   Aegis.Evaluator      PolicyEvaluator (decision engine), PolicyValidator, opt-in decision
-                      caching (AegisEngine.WithDecisionCache), AegisEngine facade
-  Aegis.Sql            SQL Server-backed IAttributeProvider + IPolicyProvider
+                      caching (AegisEngine.WithDecisionCache), AegisEngine facade,
+                      MultiTenantAegisEngine (one isolated engine per tenant, #19)
+  Aegis.Sql            SQL Server-backed IAttributeProvider + IPolicyProvider, both with
+                      optional per-tenant scoping
   Aegis.AspNetCore     services.AddAegis(...) DI registration, HttpContext.User authorization
   Aegis.Cli            `aegis validate`/`aegis authorize` -- a dotnet tool (AegisCli)
   Aegis.Testing        ShouldAllowAsync/ShouldDenyAsync -- CI-friendly policy regression tests,
@@ -135,6 +137,16 @@ A mismatch throws `PolicyAssertionException` with the full decision
 explanation attached, so a failing test tells you which condition didn't
 evaluate the way the policy intended -- not just "expected allow, got deny".
 
+For multi-tenant deployments, `MultiTenantAegisEngine` keeps every tenant's
+policies, relationships, and cache in their own `AegisEngine`, built lazily
+the first time that tenant is requested:
+
+```csharp
+var registry = MultiTenantAegisEngine.FromTenantDirectories("Tenants"); // Tenants/{tenantId}/*.yaml
+
+var decision = await registry.AuthorizeAsync("acme-sacco", officer, loanApplication, "approve");
+```
+
 ## Compliance notes for regulated finance
 
 Three patterns regulated-finance deployments care about, and where each one
@@ -147,13 +159,17 @@ stands today versus the roadmap below:
 - **Segregation of duties.** No special engine feature — it's just an ABAC
   condition, as in the loan sample's `principal.id != resource.applicantId`.
   Any "can't act on your own thing" rule follows the same shape.
-- **Branch/tenant isolation.** Also expressible today as ABAC
-  (`principal.branch == resource.branch`), which is fine for single-tenant
-  or branch-scoped deployments. True multi-tenant isolation — separate
-  policy sets per tenant, enforced at the storage layer rather than by
-  convention in every policy — is Phase 3 work. Until then, ABAC-based
-  scoping is the pattern, and it's on the policy author to apply it
-  consistently rather than the engine enforcing it structurally.
+- **Branch/tenant isolation.** Branch-scoping within one tenant is still
+  ABAC (`principal.branch == resource.branch`) -- that's fine, branches of
+  the same SACCO share one policy set on purpose. Across tenants,
+  `MultiTenantAegisEngine` gives each tenant a wholly separate `AegisEngine`
+  (own policies, own relationship graph, own decision cache), built lazily
+  per tenant and cached -- structural isolation, mirroring how AWS Verified
+  Permissions scopes access by Policy Store rather than filtering one
+  shared store. `Aegis.Sql`'s `SqlPolicyProvider`/`SqlServerAttributeProvider`
+  support the same pattern (an optional `TenantId` + tenant column per
+  table), for a tenant-scoped provider instance per tenant rather than one
+  shared provider trusted to filter correctly on every query.
 - **Data residency.** Policy Storage (see below) is designed pluggable
   specifically so a regulated deployment can pick a backend that keeps
   policy data in-region. The filesystem loader and a SQL Server backend

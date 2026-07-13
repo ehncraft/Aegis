@@ -17,6 +17,7 @@
   <ItemGroup>
     <None Include="Policies\**\*.yaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Relationships\**\*.yaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Tenants\**\*.yaml" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

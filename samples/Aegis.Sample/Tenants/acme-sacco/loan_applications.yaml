@@ -1,0 +1,8 @@
+resource: loan_applications
+name: acme-loan-policy
+
+actions:
+  view:
+    allow:
+      roles:
+        - LoanOfficer

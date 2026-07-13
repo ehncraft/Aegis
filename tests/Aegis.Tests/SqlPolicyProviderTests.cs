@@ -18,9 +18,16 @@ public class SqlPolicyProviderTests
             _throws = throws;
         }
 
+        public string? LastCommandText { get; private set; }
+
+        public IReadOnlyDictionary<string, object?>? LastParameters { get; private set; }
+
         public Task<IReadOnlyList<IReadOnlyDictionary<string, object?>>> QueryAsync(
             string commandText, IReadOnlyDictionary<string, object?> parameters, CancellationToken cancellationToken)
         {
+            LastCommandText = commandText;
+            LastParameters = parameters;
+
             if (_throws is not null)
             {
                 throw _throws;
@@ -129,5 +136,48 @@ public class SqlPolicyProviderTests
 
         var ex = await Assert.ThrowsAsync<PolicyLoadException>(() => provider.LoadPoliciesAsync());
         Assert.Equal("sql:AegisPolicies", ex.PolicySource);
+    }
+
+    [Fact]
+    public async Task LoadPoliciesAsync_NoTenantId_QueriesWithoutTenantFilterAsync()
+    {
+        var executor = new FakeSqlQueryExecutor(
+            [new Dictionary<string, object?> { ["ResourceName"] = "invoices", ["PolicyYaml"] = ValidYaml }]);
+        var provider = new SqlPolicyProvider(Options(), executor);
+
+        await provider.LoadPoliciesAsync();
+
+        Assert.DoesNotContain("WHERE", executor.LastCommandText, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(executor.LastParameters!);
+    }
+
+    [Fact]
+    public async Task LoadPoliciesAsync_WithTenantId_ScopesQueryByTenantAsync()
+    {
+        var options = Options();
+        options.TenantId = "acme-sacco";
+        var executor = new FakeSqlQueryExecutor(
+            [new Dictionary<string, object?> { ["ResourceName"] = "invoices", ["PolicyYaml"] = ValidYaml }]);
+        var provider = new SqlPolicyProvider(options, executor);
+
+        await provider.LoadPoliciesAsync();
+
+        Assert.Contains("[TenantId] = @tenantId", executor.LastCommandText);
+        Assert.Equal("acme-sacco", executor.LastParameters!["@tenantId"]);
+    }
+
+    [Fact]
+    public async Task LoadPoliciesAsync_WithTenantId_UsesConfiguredTenantIdColumnAsync()
+    {
+        var options = Options();
+        options.TenantId = "acme-sacco";
+        options.TenantIdColumn = "SaccoId";
+        var executor = new FakeSqlQueryExecutor(
+            [new Dictionary<string, object?> { ["ResourceName"] = "invoices", ["PolicyYaml"] = ValidYaml }]);
+        var provider = new SqlPolicyProvider(options, executor);
+
+        await provider.LoadPoliciesAsync();
+
+        Assert.Contains("[SaccoId] = @tenantId", executor.LastCommandText);
     }
 }

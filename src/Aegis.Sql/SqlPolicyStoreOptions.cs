@@ -17,4 +17,17 @@ public sealed class SqlPolicyStoreOptions
 
     /// <summary>Column holding the policy body as YAML text (the same shape as a <c>*.yaml</c> file).</summary>
     public string PolicyYamlColumn { get; set; } = "PolicyYaml";
+
+    /// <summary>Column scoping rows to a tenant. Only read when <see cref="TenantId"/> is set.</summary>
+    public string TenantIdColumn { get; set; } = "TenantId";
+
+    /// <summary>
+    /// Multi-tenancy: when set, only rows matching this tenant are loaded.
+    /// Isolation between tenants is structural via a separate
+    /// <see cref="SqlPolicyProvider"/> instance per tenant (see
+    /// <c>MultiTenantAegisEngine</c> in Aegis.Evaluator), not a shared
+    /// provider filtering per request. Unset (default) loads every row
+    /// regardless of tenant -- unchanged from before this existed.
+    /// </summary>
+    public string? TenantId { get; set; }
 }

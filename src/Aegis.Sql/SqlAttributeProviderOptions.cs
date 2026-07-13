@@ -34,6 +34,27 @@ public sealed class SqlAttributeProviderOptions
     /// <summary>Resource attribute lookup, keyed by <c>AegisResource.Kind</c> (case-insensitive).</summary>
     public Dictionary<string, SqlResourceTableMapping> ResourceTables { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Multi-tenancy: when set, scopes queries by this tenant id -- but
+    /// only for tables that also have their own tenant column configured
+    /// below (<see cref="PrincipalTenantColumn"/>, <see cref="RoleTenantColumn"/>,
+    /// <see cref="SqlResourceTableMapping.TenantColumn"/>). Unlike the
+    /// policy table (which Aegis owns the schema for), these tables are
+    /// existing schema this library doesn't dictate, so there's no single
+    /// column name to assume -- a table left unconfigured is queried
+    /// unscoped, unchanged from before this existed. Isolation between
+    /// tenants is structural via a separate provider instance per tenant
+    /// (see <c>MultiTenantAegisEngine</c> in Aegis.Evaluator), not a shared
+    /// provider filtering per request.
+    /// </summary>
+    public string? TenantId { get; set; }
+
+    /// <summary>Column on <see cref="PrincipalTable"/> scoping rows to a tenant. Only read when <see cref="TenantId"/> is set.</summary>
+    public string? PrincipalTenantColumn { get; set; }
+
+    /// <summary>Column on <see cref="RoleTable"/> scoping rows to a tenant. Only read when <see cref="TenantId"/> is set.</summary>
+    public string? RoleTenantColumn { get; set; }
 }
 
 /// <summary>Where to find attributes for one <c>AegisResource.Kind</c>.</summary>
@@ -46,4 +67,7 @@ public sealed class SqlResourceTableMapping
 
     /// <summary>Output attribute name -> column name.</summary>
     public Dictionary<string, string> AttributeColumns { get; init; } = [];
+
+    /// <summary>Column on <see cref="Table"/> scoping rows to a tenant. Only read when <see cref="SqlAttributeProviderOptions.TenantId"/> is set.</summary>
+    public string? TenantColumn { get; init; }
 }

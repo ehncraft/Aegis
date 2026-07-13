@@ -79,6 +79,22 @@ Explain(
     "(ReBAC derived role: officer-1 is in senior-auditors, which is in audit-committee -- transitive, two-hop)",
     await engine.AuthorizeAsync(officer, withinLimit, LoanActions.Review));
 
+// Multi-tenancy: acme-sacco and beta-bank each have their own
+// loan_applications policy -- same resource name, different rules, and
+// structurally isolated (Tenants/{tenantId} loads into its own AegisEngine,
+// built lazily and cached on first request for that tenant).
+var tenantsPath = Path.Combine(AppContext.BaseDirectory, "Tenants");
+await using var tenantRegistry = MultiTenantAegisEngine.FromTenantDirectories(tenantsPath);
+
+Explain(
+    "Can the officer view LN-1001 under acme-sacco's policy? (acme-sacco requires LoanOfficer, which they hold)",
+    await tenantRegistry.AuthorizeAsync("acme-sacco", officer, withinLimit, LoanActions.View));
+
+Explain(
+    "Can the officer view LN-1001 under beta-bank's policy? " +
+    "(beta-bank requires Underwriter instead -- a wholly separate policy set for the same resource name, not a filtered view of acme-sacco's)",
+    await tenantRegistry.AuthorizeAsync("beta-bank", officer, withinLimit, LoanActions.View));
+
 void Explain(string question, AuthorizationDecision decision)
 {
     Console.WriteLine(question);
