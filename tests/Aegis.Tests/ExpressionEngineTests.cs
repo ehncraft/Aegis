@@ -167,4 +167,94 @@ public class ExpressionEngineTests
 
         Assert.Empty(expr.ReferencedVariableNames);
     }
+
+    [Theory]
+    [InlineData("!5")]
+    [InlineData("!'x'")]
+    public void SemanticAnalysis_RejectsNotOfNonBooleanLiteral(string source)
+    {
+        Assert.Throws<ExpressionSyntaxException>(() => CompiledExpression.Parse(source));
+    }
+
+    [Theory]
+    [InlineData("'a' && true")]
+    [InlineData("true && 5")]
+    [InlineData("1 || false")]
+    public void SemanticAnalysis_RejectsLogicalOperatorOnNonBooleanLiteral(string source)
+    {
+        Assert.Throws<ExpressionSyntaxException>(() => CompiledExpression.Parse(source));
+    }
+
+    [Theory]
+    [InlineData("1 < 'x'")]
+    [InlineData("'a' > 5")]
+    public void SemanticAnalysis_RejectsIncomparableLiteralConstants(string source)
+    {
+        Assert.Throws<ExpressionSyntaxException>(() => CompiledExpression.Parse(source));
+    }
+
+    [Fact]
+    public void SemanticAnalysis_StringOrderingComparisonIsAllowed()
+    {
+        var expr = CompiledExpression.Parse("'a' < 'b'");
+
+        Assert.True(expr.EvaluateBoolean(new EvaluationContext()));
+    }
+
+    [Fact]
+    public void SemanticAnalysis_DoesNotRejectDynamicOperandsStatically()
+    {
+        // `principal.active` is a member path, not a literal -- its type is
+        // only known at request time, so parsing must succeed even though
+        // it could turn out non-boolean.
+        var expr = CompiledExpression.Parse("principal.active && true");
+
+        var context = ContextWith(
+            new Dictionary<string, object?> { ["active"] = true }, new Dictionary<string, object?>());
+        Assert.True(expr.EvaluateBoolean(context));
+    }
+
+    [Fact]
+    public void ConstantFolding_DeeplyNestedConstantsStillEvaluateCorrectly()
+    {
+        var expr = CompiledExpression.Parse("(1 < 2) && (3 > 2) || false");
+
+        Assert.True(expr.EvaluateBoolean(new EvaluationContext()));
+    }
+
+    [Fact]
+    public void ConstantFolding_DoesNotSkipEvaluatingNonConstantLeftOperandOfAnd()
+    {
+        // The right side folds to a constant, but the left side is a
+        // member path that turns out non-boolean at runtime -- folding must
+        // not have dropped its evaluation (and the exception it raises).
+        var expr = CompiledExpression.Parse("principal.active && false");
+
+        var context = ContextWith(
+            new Dictionary<string, object?> { ["active"] = "not-a-bool" }, new Dictionary<string, object?>());
+        Assert.Throws<ExpressionEvaluationException>(() => expr.EvaluateBoolean(context));
+    }
+
+    [Fact]
+    public void ConstantFolding_DoesNotSkipEvaluatingNonConstantLeftOperandOfOr()
+    {
+        var expr = CompiledExpression.Parse("principal.active || true");
+
+        var context = ContextWith(
+            new Dictionary<string, object?> { ["active"] = "not-a-bool" }, new Dictionary<string, object?>());
+        Assert.Throws<ExpressionEvaluationException>(() => expr.EvaluateBoolean(context));
+    }
+
+    [Fact]
+    public void ConstantFolding_StillCollectsVariableReferencesInsideFoldedBranch()
+    {
+        // The `&&` folds away entirely at compile time (left is a constant
+        // `false`), but PolicyValidator still needs to see the reference to
+        // catch a typo'd variable name -- and evaluation must not need
+        // `${x}` to be defined, proving the branch really is skipped.
+        var expr = CompiledExpression.Parse("false && ${x}");
+
+        Assert.Equal(["x"], expr.ReferencedVariableNames);
+        Assert.False(expr.EvaluateBoolean(new EvaluationContext()));
+    }
 }

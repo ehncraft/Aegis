@@ -17,23 +17,25 @@ below for how that shapes the design.
 Phase 0 (MSSQL + existing ASP.NET Identity/IdentityServer/OpenIddict auth
 server integration) is done. Phase 1's core engine slice — policy loading,
 validation, the expression engine, the decision engine, the explain API, DI/
-ASP.NET Core registration, and a CLI — is also done, except the compiler/IR
-pipeline described below, which is deliberately deferred: still a
-tree-walking interpreter, and that's a later optimization once the
-expression surface is stable. Policies can also share reusable `${name}`
-variables and derived roles (roles computed from a condition, or from
-Cedar-style entity-hierarchy membership, rather than held directly by the
-principal) via `imports:` -- see [Policy as Code](#policy-as-code) below.
-`Aegis.Dashboard` is a Blazor Server admin UI for browsing policies,
-relationships, and decision history -- no policy editor yet (that's #22,
-and needs the compiler/IR pipeline's live-validation first).
+ASP.NET Core registration, and a CLI — is also done, including the
+compiler/IR pipeline (#3): condition expressions go parse tree → IR →
+semantic validation → constant-folding optimization → a compiled
+`Func<EvaluationContext, object?>` via `System.Linq.Expressions`, evaluated
+directly rather than tree-walked on every request. Policies can also share
+reusable `${name}` variables and derived roles (roles computed from a
+condition, or from Cedar-style entity-hierarchy membership, rather than held
+directly by the principal) via `imports:` -- see
+[Policy as Code](#policy-as-code) below. `Aegis.Dashboard` is a Blazor
+Server admin UI for browsing policies, relationships, and decision history
+-- no policy editor yet (that's #22).
 
 ```
 src/
   Aegis.Core          Principal, Resource, AuthorizationDecision, DecisionExplanation,
                       IAttributeProvider, IClaimsPrincipalMapper
-  Aegis.Expressions    Tokenizer, parser, tree-walking evaluator for condition expressions
-                      (member paths, literals, `${name}` variable references)
+  Aegis.Expressions    Tokenizer, parser, IR lowering/semantic analysis/constant-folding
+                      optimizer, and an expression-tree compiler for condition expressions
+                      (member paths, literals, `${name}` variable references, #3)
   Aegis.Policies       ResourcePolicy/ActionRule/AllowRule/DerivedRoleDefinition model,
                       IPolicyProvider, YAML loader (variables/derivedRoles/imports)
   Aegis.Relationships  Cedar-style entity hierarchy (EntityUid/EntityParent), pluggable
