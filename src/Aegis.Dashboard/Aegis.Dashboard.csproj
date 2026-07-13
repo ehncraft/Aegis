@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Aegis.Core\Aegis.Core.csproj" />
+    <ProjectReference Include="..\Aegis.Policies\Aegis.Policies.csproj" />
+    <ProjectReference Include="..\Aegis.Relationships\Aegis.Relationships.csproj" />
+    <ProjectReference Include="..\Aegis.Audit\Aegis.Audit.csproj" />
+    <ProjectReference Include="..\Aegis.Sql\Aegis.Sql.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SecurityCodeScan.VS2019" Version="5.6.7">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <!-- Runnable out of the box, against the same SACCO sample data as
+       samples/Aegis.Sample, linked (not copied) so the two never drift. -->
+  <ItemGroup>
+    <None Include="..\..\samples\Aegis.Sample\Policies\*.yaml" Link="Policies\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\samples\Aegis.Sample\Relationships\*.yaml" Link="Relationships\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>
