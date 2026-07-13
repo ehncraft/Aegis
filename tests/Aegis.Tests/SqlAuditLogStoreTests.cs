@@ -129,6 +129,51 @@ public class SqlAuditLogStoreTests
     }
 
     [Fact]
+    public async Task QueryAsync_FiltersByResourceKindAndResourceIdAsync()
+    {
+        var executor = new FakeSqlQueryExecutor([]);
+        var store = new SqlAuditLogStore(Options(), executor);
+
+        await store.QueryAsync(new AuditLogQuery { ResourceKind = "invoices", ResourceId = "INV-1" });
+
+        var call = executor.QueryCalls[0];
+        Assert.Contains("[ResourceKind] = @resourceKind", call.CommandText);
+        Assert.Contains("[ResourceId] = @resourceId", call.CommandText);
+        Assert.Equal("invoices", call.Parameters["@resourceKind"]);
+        Assert.Equal("INV-1", call.Parameters["@resourceId"]);
+    }
+
+    [Fact]
+    public async Task QueryAsync_FiltersByActionAsync()
+    {
+        var executor = new FakeSqlQueryExecutor([]);
+        var store = new SqlAuditLogStore(Options(), executor);
+
+        await store.QueryAsync(new AuditLogQuery { Action = "approve" });
+
+        var call = executor.QueryCalls[0];
+        Assert.Contains("[Action] = @action", call.CommandText);
+        Assert.Equal("approve", call.Parameters["@action"]);
+    }
+
+    [Fact]
+    public async Task QueryAsync_FiltersByFromAndToAsync()
+    {
+        var executor = new FakeSqlQueryExecutor([]);
+        var store = new SqlAuditLogStore(Options(), executor);
+        var from = DateTimeOffset.UtcNow.AddDays(-1);
+        var to = DateTimeOffset.UtcNow;
+
+        await store.QueryAsync(new AuditLogQuery { From = from, To = to });
+
+        var call = executor.QueryCalls[0];
+        Assert.Contains("[Timestamp] >= @from", call.CommandText);
+        Assert.Contains("[Timestamp] <= @to", call.CommandText);
+        Assert.Equal(from.UtcDateTime, call.Parameters["@from"]);
+        Assert.Equal(to.UtcDateTime, call.Parameters["@to"]);
+    }
+
+    [Fact]
     public async Task QueryAsync_PassesLimitAsync()
     {
         var executor = new FakeSqlQueryExecutor([]);

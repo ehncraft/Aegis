@@ -62,7 +62,46 @@ public class InMemoryAuditLogStoreTests
     }
 
     [Fact]
-    public async Task QueryAsync_FiltersByTimeRangeAsync()
+    public async Task QueryAsync_FiltersByResourceKindAsync()
+    {
+        var store = new InMemoryAuditLogStore();
+        await store.RecordAsync(Entry(resourceKind: "invoices"));
+        await store.RecordAsync(Entry(resourceKind: "loan_applications"));
+
+        var results = await store.QueryAsync(new AuditLogQuery { ResourceKind = "invoices" });
+
+        var result = Assert.Single(results);
+        Assert.Equal("invoices", result.ResourceKind);
+    }
+
+    [Fact]
+    public async Task QueryAsync_FiltersByResourceIdAsync()
+    {
+        var store = new InMemoryAuditLogStore();
+        await store.RecordAsync(Entry(resourceId: "INV-1"));
+        await store.RecordAsync(Entry(resourceId: "INV-2"));
+
+        var results = await store.QueryAsync(new AuditLogQuery { ResourceId = "INV-1" });
+
+        var result = Assert.Single(results);
+        Assert.Equal("INV-1", result.ResourceId);
+    }
+
+    [Fact]
+    public async Task QueryAsync_FiltersByActionAsync()
+    {
+        var store = new InMemoryAuditLogStore();
+        await store.RecordAsync(Entry(action: "view"));
+        await store.RecordAsync(Entry(action: "approve"));
+
+        var results = await store.QueryAsync(new AuditLogQuery { Action = "approve" });
+
+        var result = Assert.Single(results);
+        Assert.Equal("approve", result.Action);
+    }
+
+    [Fact]
+    public async Task QueryAsync_FiltersByFromAsync()
     {
         var store = new InMemoryAuditLogStore();
         var now = DateTimeOffset.UtcNow;
@@ -70,6 +109,19 @@ public class InMemoryAuditLogStoreTests
         await store.RecordAsync(Entry(timestamp: now));
 
         var results = await store.QueryAsync(new AuditLogQuery { From = now.AddDays(-1) });
+
+        Assert.Single(results);
+    }
+
+    [Fact]
+    public async Task QueryAsync_FiltersByToAsync()
+    {
+        var store = new InMemoryAuditLogStore();
+        var now = DateTimeOffset.UtcNow;
+        await store.RecordAsync(Entry(timestamp: now.AddDays(-2)));
+        await store.RecordAsync(Entry(timestamp: now));
+
+        var results = await store.QueryAsync(new AuditLogQuery { To = now.AddDays(-1) });
 
         Assert.Single(results);
     }
