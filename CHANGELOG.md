@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/ehncraft/Aegis/compare/v0.7.0...v0.8.0) (2026-07-13)
+
+
+### Features
+
+* ReBAC support via entity-hierarchy derived roles (closes [#15](https://github.com/ehncraft/Aegis/issues/15), [#16](https://github.com/ehncraft/Aegis/issues/16), [#17](https://github.com/ehncraft/Aegis/issues/17), [#18](https://github.com/ehncraft/Aegis/issues/18)) ([#81](https://github.com/ehncraft/Aegis/issues/81)) ([193d7df](https://github.com/ehncraft/Aegis/commit/193d7df45685c3a7dea42a533acd336d3d1dcbc4))
+
 ## [0.7.0](https://github.com/ehncraft/Aegis/compare/v0.6.0...v0.7.0) (2026-07-12)
 
 
