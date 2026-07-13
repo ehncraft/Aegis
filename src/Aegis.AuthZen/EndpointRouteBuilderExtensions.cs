@@ -23,6 +23,13 @@ public static class EndpointRouteBuilderExtensions
         PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
     };
 
+    /// <summary>Requires <c>services.AddAegisHealthChecks()</c> to have been called too.</summary>
+    public static IEndpointRouteBuilder MapAegisHealthChecks(this IEndpointRouteBuilder endpoints, string path = "/health")
+    {
+        endpoints.MapHealthChecks(path);
+        return endpoints;
+    }
+
     public static IEndpointRouteBuilder MapAuthZenEndpoints(this IEndpointRouteBuilder endpoints, string prefix = "/access/v1")
     {
         endpoints.MapPost($"{prefix}/evaluation", EvaluateAsync);

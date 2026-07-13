@@ -41,14 +41,16 @@ src/
   Aegis.Relationships  Cedar-style entity hierarchy (EntityUid/EntityParent), pluggable
                       IRelationshipProvider, RelationshipGraph (`in` membership, #15-#18)
   Aegis.Evaluator      PolicyEvaluator (decision engine), PolicyValidator, opt-in decision
-                      caching (AegisEngine.WithDecisionCache), AegisEngine facade,
-                      MultiTenantAegisEngine (one isolated engine per tenant, #19)
+                      caching -- per-instance (WithDecisionCache) or shared via any
+                      IDistributedCache (WithDistributedDecisionCache, #25) -- AegisEngine
+                      facade, MultiTenantAegisEngine (one isolated engine per tenant, #19)
   Aegis.Audit          AuditLogEntry/AuditLogQuery model, pluggable IAuditLogStore,
                       InMemoryAuditLogStore (AegisEngine.WithAuditLog, #23)
   Aegis.Sql            SQL Server-backed IAttributeProvider + IPolicyProvider + IAuditLogStore,
                       all three with optional per-tenant scoping
   Aegis.AspNetCore     services.AddAegis(...) DI registration, HttpContext.User authorization
-  Aegis.AuthZen        MapAuthZenEndpoints() -- Authorization API 1.0 evaluation endpoints, #20
+  Aegis.AuthZen        MapAuthZenEndpoints() -- Authorization API 1.0 evaluation endpoints, #20;
+                      AddAegisHealthChecks()/MapAegisHealthChecks() -- readiness probe, #26
   Aegis.Cli            `aegis validate`/`aegis authorize` -- a dotnet tool (AegisCli)
   Aegis.Testing        ShouldAllowAsync/ShouldDenyAsync -- CI-friendly policy regression tests,
                       no application host required
@@ -770,6 +772,51 @@ caller sends is the key a policy sees, unaffected by any naming convention.
 The runtime remains independent of transport protocols -- `Aegis.AuthZen`
 is one HTTP-shaped adapter over the same `AegisEngine` every other
 integration uses, not a special code path.
+
+---
+
+# High Availability
+
+Aegis is already HA-friendly by design, not something bolted on: every
+`AuthorizeAsync` call is self-contained (no server-side session, no
+sticky-routing requirement), and `Aegis.Sql`'s providers already give every
+instance behind a load balancer the same view of policies/attributes/audit
+history for free, since they all read the same database. Two gaps remain,
+both addressed here:
+
+**A shared decision cache.** `AegisEngine.WithDecisionCache` is
+per-instance -- fine for a single process, but each instance behind a load
+balancer pays its own cache-miss cost (including attribute-provider I/O,
+not just re-evaluation) even for a principal/resource/action another
+instance already evaluated. `WithDistributedDecisionCache` closes that gap
+via the BCL's own `IDistributedCache`, so Aegis stays storage-agnostic --
+bring any backend package (Redis via `Microsoft.Extensions.Caching.StackExchangeRedis`,
+SQL Server via `Microsoft.Extensions.Caching.SqlServer`, etc.):
+
+```csharp
+var engine = AegisEngine.Create("Policies")
+    .WithDistributedDecisionCache(redisCache, new DecisionCacheOptions { Duration = TimeSpan.FromMinutes(5) });
+```
+
+**A readiness signal.** `Aegis.AuthZen` exposes a health check verifying
+the registered `AegisEngine` actually resolves -- catching a bad policy
+file or an unreachable SQL-backed provider at the point a load balancer or
+Kubernetes probes readiness, not on the first real request:
+
+```csharp
+builder.Services.AddAegisHealthChecks();
+// ...
+app.MapAegisHealthChecks(); // GET /health -- 200 healthy, 503 unhealthy
+```
+
+It deliberately doesn't call `AuthorizeAsync` -- a synthetic decision would
+pollute both the decision cache and (if configured) the audit log with
+health-check noise.
+
+What's explicitly out of scope here: deployment manifests, autoscaling
+rules, and orchestrator-specific configuration (Helm charts, Terraform,
+etc.) -- that's operations tooling for a specific target platform, not
+something a decision-engine library should own.
 
 ---
 
