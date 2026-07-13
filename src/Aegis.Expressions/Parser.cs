@@ -39,8 +39,8 @@ internal sealed class Parser
         var left = ParseAnd();
         while (Current.Type == TokenType.Or)
         {
-            var op = Advance().Type;
-            left = new BinaryExpr(op, left, ParseAnd());
+            var op = Advance();
+            left = new BinaryExpr(op.Type, left, ParseAnd(), op.Position);
         }
 
         return left;
@@ -51,8 +51,8 @@ internal sealed class Parser
         var left = ParseEquality();
         while (Current.Type == TokenType.And)
         {
-            var op = Advance().Type;
-            left = new BinaryExpr(op, left, ParseEquality());
+            var op = Advance();
+            left = new BinaryExpr(op.Type, left, ParseEquality(), op.Position);
         }
 
         return left;
@@ -63,8 +63,8 @@ internal sealed class Parser
         var left = ParseComparison();
         while (Current.Type is TokenType.Equal or TokenType.NotEqual)
         {
-            var op = Advance().Type;
-            left = new BinaryExpr(op, left, ParseComparison());
+            var op = Advance();
+            left = new BinaryExpr(op.Type, left, ParseComparison(), op.Position);
         }
 
         return left;
@@ -76,8 +76,8 @@ internal sealed class Parser
         while (Current.Type is TokenType.Less or TokenType.LessEqual
             or TokenType.Greater or TokenType.GreaterEqual)
         {
-            var op = Advance().Type;
-            left = new BinaryExpr(op, left, ParseUnary());
+            var op = Advance();
+            left = new BinaryExpr(op.Type, left, ParseUnary(), op.Position);
         }
 
         return left;
@@ -87,8 +87,8 @@ internal sealed class Parser
     {
         if (Current.Type == TokenType.Not)
         {
-            Advance();
-            return new UnaryExpr(TokenType.Not, ParseUnary());
+            var op = Advance();
+            return new UnaryExpr(TokenType.Not, ParseUnary(), op.Position);
         }
 
         return ParsePrimary();
@@ -104,14 +104,14 @@ internal sealed class Parser
             case TokenType.True:
             case TokenType.False:
                 Advance();
-                return new LiteralExpr(token.Value);
+                return new LiteralExpr(token.Value, token.Position);
 
             case TokenType.Identifier:
                 return ParseMember();
 
             case TokenType.Variable:
                 Advance();
-                return new VariableExpr(token.Text);
+                return new VariableExpr(token.Text, token.Position);
 
             case TokenType.LParen:
                 Advance();
@@ -127,14 +127,15 @@ internal sealed class Parser
 
     private MemberExpr ParseMember()
     {
-        var path = new List<string> { Expect(TokenType.Identifier, "identifier").Text };
+        var first = Expect(TokenType.Identifier, "identifier");
+        var path = new List<string> { first.Text };
         while (Current.Type == TokenType.Dot)
         {
             Advance();
             path.Add(Expect(TokenType.Identifier, "identifier").Text);
         }
 
-        return new MemberExpr(path);
+        return new MemberExpr(path, first.Position);
     }
 
     private Token Advance() => _tokens[_pos++];
