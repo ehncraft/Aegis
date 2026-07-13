@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Aegis.Core\Aegis.Core.csproj" />
     <ProjectReference Include="..\Aegis.Policies\Aegis.Policies.csproj" />
+    <ProjectReference Include="..\Aegis.Audit\Aegis.Audit.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -20,11 +21,12 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <PackageId>AegisSql</PackageId>
-    <Description>SQL Server-backed IAttributeProvider and IPolicyProvider for Aegis -- reads principal/resource attributes and policies from an existing database with configurable table/column mapping.</Description>
+    <Description>SQL Server-backed IAttributeProvider, IPolicyProvider, and IAuditLogStore for Aegis -- reads principal/resource attributes and policies, and persists decisions, against an existing database with configurable table/column mapping.</Description>
   </PropertyGroup>
 
   <ItemGroup>
     <None Include="Scripts\CreatePolicyTable.sql" Pack="true" PackagePath="Scripts\" />
+    <None Include="Scripts\CreateAuditLogTable.sql" Pack="true" PackagePath="Scripts\" />
   </ItemGroup>
 
 </Project>

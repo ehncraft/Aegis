@@ -2,14 +2,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Aegis.Core\Aegis.Core.csproj" />
-    <ProjectReference Include="..\Aegis.Expressions\Aegis.Expressions.csproj" />
-    <ProjectReference Include="..\Aegis.Policies\Aegis.Policies.csproj" />
-    <ProjectReference Include="..\Aegis.Relationships\Aegis.Relationships.csproj" />
-    <ProjectReference Include="..\Aegis.Audit\Aegis.Audit.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="10.0.9" />
     <PackageReference Include="SecurityCodeScan.VS2019" Version="5.6.7">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
@@ -20,8 +15,8 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <PackageId>AegisEvaluator</PackageId>
-    <Description>Decision engine and AegisEngine facade -- the entry point for embedding Aegis directly in an application.</Description>
+    <PackageId>AegisAudit</PackageId>
+    <Description>Persisted audit log for authorization decisions -- IAuditLogStore, pluggable storage, queryable after the fact.</Description>
   </PropertyGroup>
 
 </Project>

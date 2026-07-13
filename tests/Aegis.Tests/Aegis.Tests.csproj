@@ -32,6 +32,7 @@
     <ProjectReference Include="..\..\src\Aegis.Testing\Aegis.Testing.csproj" />
     <ProjectReference Include="..\..\src\Aegis.Relationships\Aegis.Relationships.csproj" />
     <ProjectReference Include="..\..\src\Aegis.AuthZen\Aegis.AuthZen.csproj" />
+    <ProjectReference Include="..\..\src\Aegis.Audit\Aegis.Audit.csproj" />
   </ItemGroup>
 
   <ItemGroup>

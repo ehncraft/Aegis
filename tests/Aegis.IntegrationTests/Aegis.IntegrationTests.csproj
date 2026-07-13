@@ -26,10 +26,12 @@
     <ProjectReference Include="..\..\src\Aegis.Policies\Aegis.Policies.csproj" />
     <ProjectReference Include="..\..\src\Aegis.Evaluator\Aegis.Evaluator.csproj" />
     <ProjectReference Include="..\..\src\Aegis.Sql\Aegis.Sql.csproj" />
+    <ProjectReference Include="..\..\src\Aegis.Audit\Aegis.Audit.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <None Include="..\..\src\Aegis.Sql\Scripts\CreatePolicyTable.sql" Link="CreatePolicyTable.sql" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Aegis.Sql\Scripts\CreateAuditLogTable.sql" Link="CreateAuditLogTable.sql" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

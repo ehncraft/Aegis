@@ -2,6 +2,7 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 
 using Aegis;
+using Aegis.Audit;
 using Aegis.Relationships;
 
 var jsonOptions = new JsonSerializerOptions
@@ -12,8 +13,10 @@ var jsonOptions = new JsonSerializerOptions
 
 var policiesPath = Path.Combine(AppContext.BaseDirectory, "Policies");
 var relationshipsPath = Path.Combine(AppContext.BaseDirectory, "Relationships");
-var engine = await AegisEngine.Create(policiesPath)
-    .WithRelationshipsAsync(new YamlRelationshipProvider(relationshipsPath));
+var auditLog = new InMemoryAuditLogStore();
+var engine = (await AegisEngine.Create(policiesPath)
+        .WithRelationshipsAsync(new YamlRelationshipProvider(relationshipsPath)))
+    .WithAuditLog(auditLog);
 
 // A loan officer at the Nairobi CBD branch with a 500,000 approval limit.
 var officer = AegisPrincipal.Create(
@@ -94,6 +97,17 @@ Explain(
     "Can the officer view LN-1001 under beta-bank's policy? " +
     "(beta-bank requires Underwriter instead -- a wholly separate policy set for the same resource name, not a filtered view of acme-sacco's)",
     await tenantRegistry.AuthorizeAsync("beta-bank", officer, withinLimit, LoanActions.View));
+
+// Audit trail: WithAuditLog(store) recorded every decision above for
+// officer-1 -- allow and deny alike -- as it happened, queryable after the
+// fact rather than only returned inline from AuthorizeAsync.
+var officerHistory = await auditLog.QueryAsync(new AuditLogQuery { PrincipalId = "officer-1" });
+Console.WriteLine($"Audit trail: {officerHistory.Count} decisions recorded for officer-1:");
+foreach (var record in officerHistory)
+{
+    Console.WriteLine(
+        $"  {record.Timestamp:O}  {record.Action,-25} {record.ResourceKind}/{record.ResourceId,-10} -> {(record.Allowed ? "allow" : "deny")}");
+}
 
 void Explain(string question, AuthorizationDecision decision)
 {

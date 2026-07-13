@@ -37,4 +37,22 @@ public sealed class SqlServerQueryExecutor(string connectionString) : ISqlQueryE
 
         return rows;
     }
+
+    public async Task ExecuteAsync(
+        string commandText,
+        IReadOnlyDictionary<string, object?> parameters,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText = commandText;
+        foreach (var (name, value) in parameters)
+        {
+            command.Parameters.AddWithValue(name, value ?? DBNull.Value);
+        }
+
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
 }

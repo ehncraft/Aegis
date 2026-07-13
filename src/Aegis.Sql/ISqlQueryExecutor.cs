@@ -12,4 +12,10 @@ public interface ISqlQueryExecutor
         string commandText,
         IReadOnlyDictionary<string, object?> parameters,
         CancellationToken cancellationToken);
+
+    /// <summary>Runs a non-query statement (INSERT/UPDATE/DELETE) -- e.g. <c>SqlAuditLogStore.RecordAsync</c>.</summary>
+    Task ExecuteAsync(
+        string commandText,
+        IReadOnlyDictionary<string, object?> parameters,
+        CancellationToken cancellationToken);
 }
