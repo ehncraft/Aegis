@@ -4,6 +4,8 @@ using Aegis.Audit;
 using Aegis.Policies;
 using Aegis.Relationships;
 
+using Microsoft.Extensions.Caching.Distributed;
+
 namespace Aegis;
 
 /// <summary>Entry point for embedding Aegis directly in an application, no DI required.</summary>
@@ -12,14 +14,14 @@ public sealed class AegisEngine : IDisposable
     private readonly IReadOnlyList<ResourcePolicy> _policies;
     private readonly PolicyEvaluator _evaluator;
     private readonly IReadOnlyList<IAttributeProvider> _attributeProviders;
-    private readonly DecisionCache? _cache;
+    private readonly IDecisionCacheBackend? _cache;
     private readonly IAuditLogStore? _auditLogStore;
 
     private AegisEngine(
         IReadOnlyList<ResourcePolicy> policies,
         PolicyEvaluator evaluator,
         IReadOnlyList<IAttributeProvider> attributeProviders,
-        DecisionCache? cache = null,
+        IDecisionCacheBackend? cache = null,
         IAuditLogStore? auditLogStore = null)
     {
         _policies = policies;
@@ -31,13 +33,29 @@ public sealed class AegisEngine : IDisposable
 
     /// <summary>
     /// Returns a new engine, sharing this one's policies and attribute
-    /// providers, that caches decisions for <paramref name="options"/>'s
+    /// providers, that caches decisions in-process for <paramref name="options"/>'s
     /// <see cref="DecisionCacheOptions.Duration"/>. Caching happens before
     /// attribute-provider enrichment, so a cache hit skips that I/O too,
-    /// not just re-evaluation.
+    /// not just re-evaluation. Private to this instance -- see
+    /// <see cref="WithDistributedDecisionCache"/> to share a cache across
+    /// multiple instances behind a load balancer.
     /// </summary>
     public AegisEngine WithDecisionCache(DecisionCacheOptions options) =>
-        new(_policies, _evaluator, _attributeProviders, new DecisionCache(options), _auditLogStore);
+        new(_policies, _evaluator, _attributeProviders, new MemoryDecisionCache(options), _auditLogStore);
+
+    /// <summary>
+    /// Same as <see cref="WithDecisionCache"/>, but backed by any
+    /// <see cref="IDistributedCache"/> (Redis, SQL Server, etc.) instead of
+    /// this instance's own memory -- a decision one instance already
+    /// computed skips attribute-provider I/O and evaluation on every other
+    /// instance too, not just repeat calls to the same one.
+    /// <see cref="DecisionCacheOptions.MaxEntries"/> doesn't apply here
+    /// (eviction is the distributed backend's own concern, not something
+    /// Aegis configures per call); only <see cref="DecisionCacheOptions.Duration"/>
+    /// is used.
+    /// </summary>
+    public AegisEngine WithDistributedDecisionCache(IDistributedCache cache, DecisionCacheOptions options) =>
+        new(_policies, _evaluator, _attributeProviders, new DistributedDecisionCache(cache, options), _auditLogStore);
 
     /// <summary>
     /// Returns a new engine, sharing this one's policies, attribute
@@ -141,10 +159,11 @@ public sealed class AegisEngine : IDisposable
     {
         var cacheKey = _cache is null
             ? null
-            : DecisionCache.BuildKey(principal, resource, action, actionProperties, context);
+            : DecisionCacheKey.Build(principal, resource, action, actionProperties, context);
+        var cachedDecision = cacheKey is null ? null : await _cache!.TryGetAsync(cacheKey, cancellationToken);
 
         AuthorizationDecision decision;
-        if (cacheKey is not null && _cache!.TryGet(cacheKey, out var cachedDecision))
+        if (cachedDecision is not null)
         {
             decision = cachedDecision;
         }
@@ -156,7 +175,7 @@ public sealed class AegisEngine : IDisposable
 
             if (cacheKey is not null)
             {
-                _cache!.Set(cacheKey, decision);
+                await _cache!.SetAsync(cacheKey, decision, cancellationToken);
             }
         }
 

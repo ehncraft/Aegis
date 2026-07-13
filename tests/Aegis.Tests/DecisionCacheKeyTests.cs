@@ -2,7 +2,7 @@ using Xunit;
 
 namespace Aegis.Tests;
 
-public class DecisionCacheTests
+public class DecisionCacheKeyTests
 {
     [Fact]
     public void BuildKey_SameInputs_ProducesTheSameKey()
@@ -11,8 +11,8 @@ public class DecisionCacheTests
             attributes: new Dictionary<string, object?> { ["department"] = "finance" });
         var resource = AegisResource.Create("invoices", "INV-1");
 
-        var key1 = DecisionCache.BuildKey(principal, resource, "view");
-        var key2 = DecisionCache.BuildKey(principal, resource, "view");
+        var key1 = DecisionCacheKey.Build(principal, resource, "view");
+        var key2 = DecisionCacheKey.Build(principal, resource, "view");
 
         Assert.Equal(key1, key2);
     }
@@ -27,8 +27,8 @@ public class DecisionCacheTests
         var resource = AegisResource.Create("invoices", "INV-1");
 
         Assert.Equal(
-            DecisionCache.BuildKey(principalA, resource, "view"),
-            DecisionCache.BuildKey(principalB, resource, "view"));
+            DecisionCacheKey.Build(principalA, resource, "view"),
+            DecisionCacheKey.Build(principalB, resource, "view"));
     }
 
     [Fact]
@@ -39,8 +39,8 @@ public class DecisionCacheTests
         var resource = AegisResource.Create("invoices", "INV-1");
 
         Assert.Equal(
-            DecisionCache.BuildKey(principalA, resource, "view"),
-            DecisionCache.BuildKey(principalB, resource, "view"));
+            DecisionCacheKey.Build(principalA, resource, "view"),
+            DecisionCacheKey.Build(principalB, resource, "view"));
     }
 
     [Fact]
@@ -56,8 +56,8 @@ public class DecisionCacheTests
         var resource = AegisResource.Create("invoices", "INV-1");
 
         Assert.NotEqual(
-            DecisionCache.BuildKey(crafted, resource, "view"),
-            DecisionCache.BuildKey(distinct, resource, "view"));
+            DecisionCacheKey.Build(crafted, resource, "view"),
+            DecisionCacheKey.Build(distinct, resource, "view"));
     }
 
     [Fact]
@@ -67,7 +67,7 @@ public class DecisionCacheTests
         var resource = AegisResource.Create("invoices", "INV-1");
 
         Assert.NotEqual(
-            DecisionCache.BuildKey(principal, resource, "view"),
-            DecisionCache.BuildKey(principal, resource, "approve"));
+            DecisionCacheKey.Build(principal, resource, "view"),
+            DecisionCacheKey.Build(principal, resource, "approve"));
     }
 }
