@@ -1,4 +1,5 @@
 using Aegis.Policies;
+using Aegis.Relationships;
 
 using Xunit;
 
@@ -224,6 +225,102 @@ public class PolicyEvaluatorTests
             "accounts", "ACC-1", attributes: new Dictionary<string, object?> { ["ownerId"] = "alice" });
 
         var decision = evaluator.Authorize(principal, resource, "view");
+
+        Assert.True(decision.Allowed);
+    }
+
+    private static ResourcePolicy PolicyWithCommitteeMemberDerivedRole() => new()
+    {
+        Resource = "loans",
+        Name = "loan-policy",
+        DerivedRoles = new Dictionary<string, DerivedRoleDefinition>
+        {
+            ["committeeMember"] = new()
+            {
+                In = new DerivedRoleHierarchyCheck { Type = "Group", Id = "'audit-committee'" },
+            },
+        },
+        Actions = new Dictionary<string, ActionRule>
+        {
+            ["review"] = new() { Allow = new AllowRule { Roles = ["committeeMember"] } },
+        },
+    };
+
+    [Fact]
+    public void ReBacDerivedRole_Allows_WhenPrincipalIsDirectMember()
+    {
+        var graph = new RelationshipGraph([
+            new EntityParent { Child = new EntityUid("User", "alice"), Parent = new EntityUid("Group", "audit-committee") },
+        ]);
+        var evaluator = new PolicyEvaluator([PolicyWithCommitteeMemberDerivedRole()], graph);
+        var principal = AegisPrincipal.Create("alice");
+        var resource = AegisResource.Create("loans", "LOAN-1");
+
+        var decision = evaluator.Authorize(principal, resource, "review");
+
+        Assert.True(decision.Allowed);
+        var condition = Assert.Single(decision.Explanation.Conditions);
+        Assert.Equal("derived role 'committeeMember': User::alice in Group::audit-committee", condition.Expression);
+    }
+
+    [Fact]
+    public void ReBacDerivedRole_Allows_WhenPrincipalIsTransitiveMember()
+    {
+        var graph = new RelationshipGraph([
+            new EntityParent { Child = new EntityUid("User", "alice"), Parent = new EntityUid("Group", "senior-auditors") },
+            new EntityParent
+            {
+                Child = new EntityUid("Group", "senior-auditors"), Parent = new EntityUid("Group", "audit-committee"),
+            },
+        ]);
+        var evaluator = new PolicyEvaluator([PolicyWithCommitteeMemberDerivedRole()], graph);
+        var principal = AegisPrincipal.Create("alice");
+        var resource = AegisResource.Create("loans", "LOAN-1");
+
+        var decision = evaluator.Authorize(principal, resource, "review");
+
+        Assert.True(decision.Allowed);
+    }
+
+    [Fact]
+    public void ReBacDerivedRole_Denies_WhenPrincipalIsNotAMember()
+    {
+        var evaluator = new PolicyEvaluator([PolicyWithCommitteeMemberDerivedRole()], RelationshipGraph.Empty);
+        var principal = AegisPrincipal.Create("bob");
+        var resource = AegisResource.Create("loans", "LOAN-1");
+
+        var decision = evaluator.Authorize(principal, resource, "review");
+
+        Assert.False(decision.Allowed);
+    }
+
+    [Fact]
+    public void ReBacDerivedRole_ObjectId_CanReferenceResourceAttribute()
+    {
+        var policy = new ResourcePolicy
+        {
+            Resource = "loans",
+            DerivedRoles = new Dictionary<string, DerivedRoleDefinition>
+            {
+                ["committeeMember"] = new()
+                {
+                    In = new DerivedRoleHierarchyCheck { Type = "Group", Id = "resource.committeeId" },
+                },
+            },
+            Actions = new Dictionary<string, ActionRule>
+            {
+                ["review"] = new() { Allow = new AllowRule { Roles = ["committeeMember"] } },
+            },
+        };
+        var graph = new RelationshipGraph([
+            new EntityParent { Child = new EntityUid("User", "alice"), Parent = new EntityUid("Group", "branch-42-committee") },
+        ]);
+        var evaluator = new PolicyEvaluator([policy], graph);
+        var principal = AegisPrincipal.Create("alice");
+        var resource = AegisResource.Create(
+            "loans", "LOAN-1", attributes: new Dictionary<string, object?> { ["committeeId"] = "branch-42-committee" });
+
+        var decision = evaluator.Authorize(principal, resource, "review");
 
         Assert.True(decision.Allowed);
     }

@@ -1,19 +1,25 @@
 using System.Security.Claims;
 
 using Aegis.Policies;
+using Aegis.Relationships;
 
 namespace Aegis;
 
 /// <summary>Entry point for embedding Aegis directly in an application, no DI required.</summary>
 public sealed class AegisEngine : IDisposable
 {
+    private readonly IReadOnlyList<ResourcePolicy> _policies;
     private readonly PolicyEvaluator _evaluator;
     private readonly IReadOnlyList<IAttributeProvider> _attributeProviders;
     private readonly DecisionCache? _cache;
 
     private AegisEngine(
-        PolicyEvaluator evaluator, IReadOnlyList<IAttributeProvider> attributeProviders, DecisionCache? cache = null)
+        IReadOnlyList<ResourcePolicy> policies,
+        PolicyEvaluator evaluator,
+        IReadOnlyList<IAttributeProvider> attributeProviders,
+        DecisionCache? cache = null)
     {
+        _policies = policies;
         _evaluator = evaluator;
         _attributeProviders = attributeProviders;
         _cache = cache;
@@ -27,7 +33,23 @@ public sealed class AegisEngine : IDisposable
     /// not just re-evaluation.
     /// </summary>
     public AegisEngine WithDecisionCache(DecisionCacheOptions options) =>
-        new(_evaluator, _attributeProviders, new DecisionCache(options));
+        new(_policies, _evaluator, _attributeProviders, new DecisionCache(options));
+
+    /// <summary>
+    /// Returns a new engine, sharing this one's policies, attribute
+    /// providers, and cache, whose derived roles can also test entity-hierarchy
+    /// membership (<c>in</c>, Cedar-style) against the tuples <paramref name="relationshipProvider"/>
+    /// supplies. Opt-in and rebuilt eagerly (not lazily) for the same reason
+    /// <see cref="Create"/> validates eagerly -- a bad tuple fails here, not
+    /// on the first request that references it.
+    /// </summary>
+    public async Task<AegisEngine> WithRelationshipsAsync(
+        IRelationshipProvider relationshipProvider, CancellationToken cancellationToken = default)
+    {
+        var entityParents = await relationshipProvider.LoadEntityParentsAsync(cancellationToken);
+        var graph = new RelationshipGraph(entityParents);
+        return new AegisEngine(_policies, new PolicyEvaluator(_policies, graph), _attributeProviders, _cache);
+    }
 
     public void Dispose() => _cache?.Dispose();
 
@@ -40,7 +62,7 @@ public sealed class AegisEngine : IDisposable
     {
         var policies = YamlPolicyLoader.LoadDirectory(policiesDirectory);
         PolicyValidator.Validate(policies);
-        return new AegisEngine(new PolicyEvaluator(policies), attributeProviders);
+        return new AegisEngine(policies, new PolicyEvaluator(policies), attributeProviders);
     }
 
     /// <summary>Validates before returning; see <see cref="PolicyValidator"/>.</summary>
@@ -49,7 +71,7 @@ public sealed class AegisEngine : IDisposable
     {
         var policyList = policies as IReadOnlyList<ResourcePolicy> ?? [.. policies];
         PolicyValidator.Validate(policyList);
-        return new AegisEngine(new PolicyEvaluator(policyList), attributeProviders);
+        return new AegisEngine(policyList, new PolicyEvaluator(policyList), attributeProviders);
     }
 
     /// <summary>
@@ -64,7 +86,7 @@ public sealed class AegisEngine : IDisposable
     {
         var policies = await policyProvider.LoadPoliciesAsync(cancellationToken);
         PolicyValidator.Validate(policies);
-        return new AegisEngine(new PolicyEvaluator(policies), attributeProviders ?? []);
+        return new AegisEngine(policies, new PolicyEvaluator(policies), attributeProviders ?? []);
     }
 
     /// <summary>

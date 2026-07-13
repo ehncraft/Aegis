@@ -1,5 +1,6 @@
 using Aegis.Expressions;
 using Aegis.Policies;
+using Aegis.Relationships;
 
 namespace Aegis;
 
@@ -13,11 +14,13 @@ public sealed class PolicyEvaluator
     private readonly Dictionary<string, ResourcePolicy> _policiesByResource;
     private readonly Dictionary<string, VariableScope> _variableScopesByResource;
     private readonly Dictionary<string, CompiledExpression> _compiledExpressions = new();
+    private readonly RelationshipGraph _relationshipGraph;
 
-    public PolicyEvaluator(IEnumerable<ResourcePolicy> policies)
+    public PolicyEvaluator(IEnumerable<ResourcePolicy> policies, RelationshipGraph? relationshipGraph = null)
     {
         var policyList = policies as IReadOnlyList<ResourcePolicy> ?? [.. policies];
         _policiesByResource = policyList.ToDictionary(p => p.Resource, StringComparer.OrdinalIgnoreCase);
+        _relationshipGraph = relationshipGraph ?? RelationshipGraph.Empty;
 
         // Built eagerly, not lazily, so a bad variable expression fails at
         // construction (already validated by PolicyValidator by then, but
@@ -115,9 +118,7 @@ public sealed class PolicyEvaluator
 
             if (policy.DerivedRoles.TryGetValue(roleName, out var derivedRole))
             {
-                var compiled = GetOrCompile(derivedRole.When);
-                result = compiled.EvaluateBoolean(context);
-                expression = $"derived role '{roleName}': {compiled.Source}";
+                (result, expression) = EvaluateDerivedRole(roleName, derivedRole, principal, context);
             }
             else
             {
@@ -130,6 +131,34 @@ public sealed class PolicyEvaluator
         }
 
         return anyMatch;
+    }
+
+    /// <summary>
+    /// ABAC-style (<see cref="DerivedRoleDefinition.When"/>) evaluates a
+    /// boolean condition, unchanged. ReBAC-style (<see cref="DerivedRoleDefinition.In"/>)
+    /// evaluates its <c>id</c> expression to get the target entity's id,
+    /// then asks the relationship graph whether the principal -- always
+    /// "User:{principal.Id}", matching the tuple format this feature
+    /// standardized on -- is a (transitive) member of that entity's
+    /// hierarchy.
+    /// </summary>
+    private (bool Result, string Expression) EvaluateDerivedRole(
+        string roleName, DerivedRoleDefinition derivedRole, AegisPrincipal principal, EvaluationContext context)
+    {
+        if (derivedRole.When is not null)
+        {
+            var compiled = GetOrCompile(derivedRole.When);
+            return (compiled.EvaluateBoolean(context), $"derived role '{roleName}': {compiled.Source}");
+        }
+
+        var hierarchyCheck = derivedRole.In!;
+        var idExpression = GetOrCompile(hierarchyCheck.Id);
+        var id = idExpression.Evaluate(context)?.ToString() ?? string.Empty;
+        var ancestor = new EntityUid(hierarchyCheck.Type, id);
+        var descendant = new EntityUid("User", principal.Id);
+        var result = _relationshipGraph.IsIn(descendant, ancestor);
+
+        return (result, $"derived role '{roleName}': {descendant} in {ancestor}");
     }
 
     private VariableScope BuildVariableScope(ResourcePolicy policy)

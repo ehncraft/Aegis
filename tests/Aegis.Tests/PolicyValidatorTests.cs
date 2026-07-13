@@ -208,4 +208,106 @@ public class PolicyValidatorTests
         Assert.Single(ex.Errors);
         Assert.Contains("circular", ex.Errors[0], StringComparison.OrdinalIgnoreCase);
     }
+
+    [Fact]
+    public void Validate_ValidReBacDerivedRole_DoesNotThrow()
+    {
+        var policy = ValidPolicy();
+        policy.DerivedRoles["committeeMember"] = new DerivedRoleDefinition
+        {
+            In = new DerivedRoleHierarchyCheck { Type = "Group", Id = "resource.committeeId" },
+        };
+
+        var exception = Record.Exception(() => PolicyValidator.Validate([policy]));
+
+        Assert.Null(exception);
+    }
+
+    [Fact]
+    public void Validate_DerivedRoleWithBothWhenAndIn_Throws()
+    {
+        var policy = ValidPolicy();
+        policy.DerivedRoles["owner"] = new DerivedRoleDefinition
+        {
+            When = "principal.id == resource.ownerId",
+            In = new DerivedRoleHierarchyCheck { Type = "Group", Id = "'audit-committee'" },
+        };
+
+        var ex = Assert.Throws<PolicyValidationException>(() => PolicyValidator.Validate([policy]));
+
+        Assert.Single(ex.Errors);
+        Assert.Contains("both", ex.Errors[0], StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Validate_DerivedRoleWithNeitherWhenNorIn_Throws()
+    {
+        var policy = ValidPolicy();
+        policy.DerivedRoles["owner"] = new DerivedRoleDefinition();
+
+        var ex = Assert.Throws<PolicyValidationException>(() => PolicyValidator.Validate([policy]));
+
+        Assert.Single(ex.Errors);
+        Assert.Contains("owner", ex.Errors[0]);
+    }
+
+    [Fact]
+    public void Validate_InMissingType_Throws()
+    {
+        var policy = ValidPolicy();
+        policy.DerivedRoles["committeeMember"] = new DerivedRoleDefinition
+        {
+            In = new DerivedRoleHierarchyCheck { Id = "'audit-committee'" },
+        };
+
+        var ex = Assert.Throws<PolicyValidationException>(() => PolicyValidator.Validate([policy]));
+
+        Assert.Single(ex.Errors);
+        Assert.Contains("type", ex.Errors[0], StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Validate_InMissingId_Throws()
+    {
+        var policy = ValidPolicy();
+        policy.DerivedRoles["committeeMember"] = new DerivedRoleDefinition
+        {
+            In = new DerivedRoleHierarchyCheck { Type = "Group" },
+        };
+
+        var ex = Assert.Throws<PolicyValidationException>(() => PolicyValidator.Validate([policy]));
+
+        Assert.Single(ex.Errors);
+        Assert.Contains("id", ex.Errors[0], StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Validate_InIdInvalidExpression_Throws()
+    {
+        var policy = ValidPolicy();
+        policy.DerivedRoles["committeeMember"] = new DerivedRoleDefinition
+        {
+            In = new DerivedRoleHierarchyCheck { Type = "Group", Id = "resource.committeeId ==" },
+        };
+
+        var ex = Assert.Throws<PolicyValidationException>(() => PolicyValidator.Validate([policy]));
+
+        Assert.Single(ex.Errors);
+        Assert.Contains("committeeMember", ex.Errors[0]);
+    }
+
+    [Fact]
+    public void Validate_InIdUndefinedVariable_Throws()
+    {
+        var policy = ValidPolicy();
+        policy.DerivedRoles["committeeMember"] = new DerivedRoleDefinition
+        {
+            In = new DerivedRoleHierarchyCheck { Type = "Group", Id = "${missing}" },
+        };
+
+        var ex = Assert.Throws<PolicyValidationException>(() => PolicyValidator.Validate([policy]));
+
+        Assert.Single(ex.Errors);
+        Assert.Contains("missing", ex.Errors[0]);
+    }
 }

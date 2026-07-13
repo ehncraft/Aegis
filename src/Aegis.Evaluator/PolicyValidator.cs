@@ -65,24 +65,7 @@ public static class PolicyValidator
 
             foreach (var (roleName, roleDefinition) in policy.DerivedRoles)
             {
-                if (string.IsNullOrWhiteSpace(roleDefinition.When))
-                {
-                    errors.Add(
-                        $"Resource '{policy.Resource}' ({source}), derived role '{roleName}': missing 'when' condition.");
-                    continue;
-                }
-
-                try
-                {
-                    var compiled = CompiledExpression.Parse(roleDefinition.When);
-                    CheckUndefinedVariables(policy, source, $"derived role '{roleName}'", compiled, errors);
-                }
-                catch (ExpressionSyntaxException ex)
-                {
-                    errors.Add(
-                        $"Resource '{policy.Resource}' ({source}), derived role '{roleName}': invalid 'when' " +
-                        $"expression '{roleDefinition.When}' -- {ex.Message}");
-                }
+                ValidateDerivedRole(policy, source, roleName, roleDefinition, errors);
             }
 
             foreach (var (actionName, rule) in policy.Actions)
@@ -117,6 +100,77 @@ public static class PolicyValidator
         if (errors.Count > 0)
         {
             throw new PolicyValidationException(errors);
+        }
+    }
+
+    /// <summary>
+    /// A derived role is either ABAC-style (<c>when</c>) or ReBAC-style
+    /// (<c>in</c>, Cedar's entity-hierarchy membership check) -- exactly
+    /// one, not both, not neither.
+    /// </summary>
+    private static void ValidateDerivedRole(
+        ResourcePolicy policy, string source, string roleName, DerivedRoleDefinition roleDefinition, List<string> errors)
+    {
+        var hasWhen = !string.IsNullOrWhiteSpace(roleDefinition.When);
+        var hasIn = roleDefinition.In is not null;
+
+        if (hasWhen && hasIn)
+        {
+            errors.Add(
+                $"Resource '{policy.Resource}' ({source}), derived role '{roleName}': specifies both 'when' and " +
+                "'in' -- a derived role is either condition-based or relationship-based, not both.");
+            return;
+        }
+
+        if (!hasWhen && !hasIn)
+        {
+            errors.Add(
+                $"Resource '{policy.Resource}' ({source}), derived role '{roleName}': missing 'when' condition or 'in'.");
+            return;
+        }
+
+        if (hasWhen)
+        {
+            try
+            {
+                var compiled = CompiledExpression.Parse(roleDefinition.When!);
+                CheckUndefinedVariables(policy, source, $"derived role '{roleName}'", compiled, errors);
+            }
+            catch (ExpressionSyntaxException ex)
+            {
+                errors.Add(
+                    $"Resource '{policy.Resource}' ({source}), derived role '{roleName}': invalid 'when' " +
+                    $"expression '{roleDefinition.When}' -- {ex.Message}");
+            }
+
+            return;
+        }
+
+        var hierarchyCheck = roleDefinition.In!;
+
+        if (string.IsNullOrWhiteSpace(hierarchyCheck.Type))
+        {
+            errors.Add(
+                $"Resource '{policy.Resource}' ({source}), derived role '{roleName}': 'in' requires a 'type'.");
+        }
+
+        if (string.IsNullOrWhiteSpace(hierarchyCheck.Id))
+        {
+            errors.Add(
+                $"Resource '{policy.Resource}' ({source}), derived role '{roleName}': 'in' requires an 'id'.");
+            return;
+        }
+
+        try
+        {
+            var compiled = CompiledExpression.Parse(hierarchyCheck.Id);
+            CheckUndefinedVariables(policy, source, $"derived role '{roleName}' id", compiled, errors);
+        }
+        catch (ExpressionSyntaxException ex)
+        {
+            errors.Add(
+                $"Resource '{policy.Resource}' ({source}), derived role '{roleName}': invalid 'in.id' " +
+                $"expression '{hierarchyCheck.Id}' -- {ex.Message}");
         }
     }
 

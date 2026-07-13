@@ -1,0 +1,22 @@
+# officer-1 is a member of senior-auditors, which is itself a member of
+# audit-committee -- transitive (two-hop) entity-hierarchy membership, not
+# a direct tuple. Mirrors Cedar's entity data format:
+# https://docs.cedarpolicy.com/auth/entities-syntax.html
+entities:
+  - uid:
+      type: User
+      id: officer-1
+    parents:
+      - type: Group
+        id: senior-auditors
+
+  - uid:
+      type: Group
+      id: senior-auditors
+    parents:
+      - type: Group
+        id: audit-committee
+
+  - uid:
+      type: Group
+      id: audit-committee

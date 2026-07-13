@@ -29,6 +29,7 @@
     <ProjectReference Include="..\..\src\Aegis.AspNetCore\Aegis.AspNetCore.csproj" />
     <ProjectReference Include="..\..\src\Aegis.Cli\Aegis.Cli.csproj" />
     <ProjectReference Include="..\..\src\Aegis.Testing\Aegis.Testing.csproj" />
+    <ProjectReference Include="..\..\src\Aegis.Relationships\Aegis.Relationships.csproj" />
   </ItemGroup>
 
   <ItemGroup>

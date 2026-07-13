@@ -2,6 +2,7 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 
 using Aegis;
+using Aegis.Relationships;
 
 var jsonOptions = new JsonSerializerOptions
 {
@@ -10,7 +11,9 @@ var jsonOptions = new JsonSerializerOptions
 };
 
 var policiesPath = Path.Combine(AppContext.BaseDirectory, "Policies");
-var engine = AegisEngine.Create(policiesPath);
+var relationshipsPath = Path.Combine(AppContext.BaseDirectory, "Relationships");
+var engine = await AegisEngine.Create(policiesPath)
+    .WithRelationshipsAsync(new YamlRelationshipProvider(relationshipsPath));
 
 // A loan officer at the Nairobi CBD branch with a 500,000 approval limit.
 var officer = AegisPrincipal.Create(
@@ -71,6 +74,11 @@ Explain("Can the officer flag LN-1003 for conflict of interest? (derived role: t
 Explain("Can the officer flag LN-1001 for conflict of interest? (derived role: they are not the applicant)",
     await engine.AuthorizeAsync(officer, withinLimit, LoanActions.FlagConflictOfInterest));
 
+Explain(
+    "Can the officer review LN-1001 for the audit committee? " +
+    "(ReBAC derived role: officer-1 is in senior-auditors, which is in audit-committee -- transitive, two-hop)",
+    await engine.AuthorizeAsync(officer, withinLimit, LoanActions.Review));
+
 void Explain(string question, AuthorizationDecision decision)
 {
     Console.WriteLine(question);
@@ -83,4 +91,5 @@ file static class LoanActions
     public const string View = "view";
     public const string Approve = "approve";
     public const string FlagConflictOfInterest = "flag_conflict_of_interest";
+    public const string Review = "review";
 }

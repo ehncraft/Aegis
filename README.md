@@ -21,10 +21,10 @@ ASP.NET Core registration, and a CLI — is also done, except the compiler/IR
 pipeline described below, which is deliberately deferred: still a
 tree-walking interpreter, and that's a later optimization once the
 expression surface is stable. Policies can also share reusable `${name}`
-variables and derived roles (roles computed from a condition rather than
-held directly by the principal) via `imports:` -- see
-[Policy as Code](#policy-as-code) below. No relationships, no standalone
-server, no dashboard yet.
+variables and derived roles (roles computed from a condition, or from
+Cedar-style entity-hierarchy membership, rather than held directly by the
+principal) via `imports:` -- see [Policy as Code](#policy-as-code) below.
+No standalone server, no dashboard yet.
 
 ```
 src/
@@ -34,6 +34,8 @@ src/
                       (member paths, literals, `${name}` variable references)
   Aegis.Policies       ResourcePolicy/ActionRule/AllowRule/DerivedRoleDefinition model,
                       IPolicyProvider, YAML loader (variables/derivedRoles/imports)
+  Aegis.Relationships  Cedar-style entity hierarchy (EntityUid/EntityParent), pluggable
+                      IRelationshipProvider, RelationshipGraph (`in` membership, #15-#18)
   Aegis.Evaluator      PolicyEvaluator (decision engine), PolicyValidator, opt-in decision
                       caching (AegisEngine.WithDecisionCache), AegisEngine facade
   Aegis.Sql            SQL Server-backed IAttributeProvider + IPolicyProvider
@@ -52,7 +54,7 @@ samples/
 
 ```bash
 dotnet test                                 # run the test suite
-dotnet run --project samples/Aegis.Sample   # role-based + attribute-based + segregation-of-duties decisions, with explain output
+dotnet run --project samples/Aegis.Sample   # role-based + attribute-based + relationship-based decisions, with explain output
 ```
 
 The sample models a SACCO/bank loan approval: a loan officer can approve an
@@ -594,25 +596,59 @@ services.AddAttributeProvider<UserAttributeProvider>();
 
 # Relationship Engine
 
-Inspired by [Zanzibar](https://www.usenix.org/conference/atc19/presentation/pang) and [OpenFGA](https://openfga.dev/docs/fga) — see #15/#16/#17/#18 for the tracked Phase 3 work.
+Relationships become data rather than application logic. Originally scoped
+against [Zanzibar](https://www.usenix.org/conference/atc19/presentation/pang)/[OpenFGA](https://openfga.dev/docs/fga)-style
+named relation tuples, but built against
+[Cedar](https://docs.cedarpolicy.com/)'s entity-hierarchy model instead —
+Aegis is leaning toward Cedar's conventions since adopting Cedar itself is
+the direction of travel, so reusing its shape here means less to reconcile
+later. An entity has a set of parents; a derived role's `in` check is
+Cedar's own `in` operator
+(https://docs.cedarpolicy.com/policies/syntax-datatypes.html#operator-in):
+true if the principal equals the target entity, or reaches it by walking up
+the parent hierarchy — covering direct membership and nested groups
+(a member of a sub-team is transitively a member of the parent team) alike.
 
-Relationships become data rather than application logic.
+```yaml
+# Relationships/audit_committee.yaml -- Cedar's own entity data format
+# (https://docs.cedarpolicy.com/auth/entities-syntax.html), in YAML.
+entities:
+  - uid: { type: User, id: officer-1 }
+    parents:
+      - type: Group
+        id: senior-auditors
 
-Example:
-
+  - uid: { type: Group, id: senior-auditors }
+    parents:
+      - type: Group
+        id: audit-committee
 ```
-user:alice
 
-member
+```yaml
+derivedRoles:
+  committeeMember:
+    in:
+      type: Group
+      id: "'audit-committee'"
 
-project:payments
+actions:
+  review:
+    allow:
+      roles:
+        - committeeMember
 ```
 
-Questions such as:
+```csharp
+var engine = await AegisEngine.Create("Policies")
+    .WithRelationshipsAsync(new YamlRelationshipProvider("Relationships"));
+```
 
-> Can Alice approve invoice 123?
-
-become graph evaluations rather than hardcoded business logic.
+`officer-1` is allowed to `review` even though they only hold a *direct*
+membership in `senior-auditors`, not `audit-committee` itself — the graph
+walk (breadth-first, cycle-safe) finds the two-hop path. Storage is
+pluggable via `IRelationshipProvider` (`YamlRelationshipProvider` for
+files, `InMemoryRelationshipProvider` for tests), separate from policy
+storage.
 
 ---
 
