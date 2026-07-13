@@ -136,4 +136,64 @@ public class SqlServerAttributeProviderTests
         Assert.Equal(250_000, result["amount"]);
         Assert.Equal("member-42", result["applicantId"]);
     }
+
+    [Fact]
+    public async Task GetPrincipalAttributesAsync_TenantIdWithoutColumnConfigured_StaysUnscopedAsync()
+    {
+        var options = OptionsWithRoles();
+        options.TenantId = "acme-sacco";
+        var executor = new FakeSqlQueryExecutor(
+            [new Dictionary<string, object?> { ["DepartmentName"] = "finance" }], [new Dictionary<string, object?>()]);
+        var provider = new SqlServerAttributeProvider(options, executor);
+
+        await provider.GetPrincipalAttributesAsync("officer-1");
+
+        Assert.DoesNotContain("AND", executor.Calls[0].CommandText, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("AND", executor.Calls[1].CommandText, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task GetPrincipalAttributesAsync_TenantScopesPrincipalAndRoleQueriesAsync()
+    {
+        var options = OptionsWithRoles();
+        options.TenantId = "acme-sacco";
+        options.PrincipalTenantColumn = "TenantId";
+        options.RoleTenantColumn = "TenantId";
+        var executor = new FakeSqlQueryExecutor(
+            [new Dictionary<string, object?> { ["DepartmentName"] = "finance" }], [new Dictionary<string, object?>()]);
+        var provider = new SqlServerAttributeProvider(options, executor);
+
+        await provider.GetPrincipalAttributesAsync("officer-1");
+
+        var principalQuery = executor.Calls[0];
+        Assert.Contains("[TenantId] = @tenantId", principalQuery.CommandText);
+        Assert.Equal("acme-sacco", principalQuery.Parameters["@tenantId"]);
+
+        var roleQuery = executor.Calls[1];
+        Assert.Contains("[TenantId] = @tenantId", roleQuery.CommandText);
+        Assert.Equal("acme-sacco", roleQuery.Parameters["@tenantId"]);
+    }
+
+    [Fact]
+    public async Task GetResourceAttributesAsync_TenantScopesQueryWhenMappingConfiguresColumnAsync()
+    {
+        var options = OptionsWithRoles();
+        options.TenantId = "acme-sacco";
+        options.ResourceTables["loan_applications"] = new SqlResourceTableMapping
+        {
+            Table = "LoanApplications",
+            IdColumn = "LoanId",
+            AttributeColumns = new Dictionary<string, string> { ["amount"] = "PrincipalAmount" },
+            TenantColumn = "SaccoId",
+        };
+        var executor = new FakeSqlQueryExecutor(
+            [new Dictionary<string, object?> { ["PrincipalAmount"] = 250_000 }]);
+        var provider = new SqlServerAttributeProvider(options, executor);
+
+        await provider.GetResourceAttributesAsync("loan_applications", "LN-1001");
+
+        var query = Assert.Single(executor.Calls);
+        Assert.Contains("[SaccoId] = @tenantId", query.CommandText);
+        Assert.Equal("acme-sacco", query.Parameters["@tenantId"]);
+    }
 }

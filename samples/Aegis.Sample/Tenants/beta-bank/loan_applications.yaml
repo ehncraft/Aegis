@@ -1,0 +1,8 @@
+resource: loan_applications
+name: beta-loan-policy
+
+actions:
+  view:
+    allow:
+      roles:
+        - Underwriter

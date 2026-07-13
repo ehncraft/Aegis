@@ -1,0 +1,8 @@
+resource: invoices
+name: acme-invoice-policy
+
+actions:
+  view:
+    allow:
+      roles:
+        - Finance

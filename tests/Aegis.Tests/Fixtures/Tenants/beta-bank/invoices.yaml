@@ -1,0 +1,8 @@
+resource: invoices
+name: beta-invoice-policy
+
+actions:
+  view:
+    allow:
+      roles:
+        - Admin

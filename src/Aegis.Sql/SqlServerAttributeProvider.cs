@@ -27,7 +27,7 @@ public sealed class SqlServerAttributeProvider : IAttributeProvider
     {
         var attributes = await SelectSingleRowAsync(
             _options.PrincipalTable, _options.PrincipalIdColumn, principalId,
-            _options.PrincipalAttributeColumns, cancellationToken);
+            _options.PrincipalAttributeColumns, _options.PrincipalTenantColumn, cancellationToken);
 
         var roles = Array.Empty<string>();
         if (_options is { RoleTable: not null, RoleUserIdColumn: not null, RoleNameColumn: not null })
@@ -36,8 +36,15 @@ public sealed class SqlServerAttributeProvider : IAttributeProvider
                 $"SELECT {SqlIdentifier.Quote(_options.RoleNameColumn)} " +
                 $"FROM {SqlIdentifier.Quote(_options.RoleTable)} " +
                 $"WHERE {SqlIdentifier.Quote(_options.RoleUserIdColumn)} = @principalId";
-            var rows = await _executor.QueryAsync(
-                sql, new Dictionary<string, object?> { ["@principalId"] = principalId }, cancellationToken);
+            var parameters = new Dictionary<string, object?> { ["@principalId"] = principalId };
+
+            if (_options.TenantId is not null && _options.RoleTenantColumn is not null)
+            {
+                sql += $" AND {SqlIdentifier.Quote(_options.RoleTenantColumn)} = @tenantId";
+                parameters["@tenantId"] = _options.TenantId;
+            }
+
+            var rows = await _executor.QueryAsync(sql, parameters, cancellationToken);
 
             roles = [.. rows
                 .Select(row => row.GetValueOrDefault(_options.RoleNameColumn) as string)
@@ -57,7 +64,7 @@ public sealed class SqlServerAttributeProvider : IAttributeProvider
         }
 
         return await SelectSingleRowAsync(
-            mapping.Table, mapping.IdColumn, resourceId, mapping.AttributeColumns, cancellationToken);
+            mapping.Table, mapping.IdColumn, resourceId, mapping.AttributeColumns, mapping.TenantColumn, cancellationToken);
     }
 
     private async Task<Dictionary<string, object?>> SelectSingleRowAsync(
@@ -65,6 +72,7 @@ public sealed class SqlServerAttributeProvider : IAttributeProvider
         string idColumn,
         string id,
         IReadOnlyDictionary<string, string> attributeColumns,
+        string? tenantColumn,
         CancellationToken cancellationToken)
     {
         var attributes = new Dictionary<string, object?>();
@@ -75,8 +83,15 @@ public sealed class SqlServerAttributeProvider : IAttributeProvider
 
         var columns = string.Join(", ", attributeColumns.Values.Select(SqlIdentifier.Quote));
         var sql = $"SELECT {columns} FROM {SqlIdentifier.Quote(table)} WHERE {SqlIdentifier.Quote(idColumn)} = @id";
-        var rows = await _executor.QueryAsync(
-            sql, new Dictionary<string, object?> { ["@id"] = id }, cancellationToken);
+        var parameters = new Dictionary<string, object?> { ["@id"] = id };
+
+        if (_options.TenantId is not null && tenantColumn is not null)
+        {
+            sql += $" AND {SqlIdentifier.Quote(tenantColumn)} = @tenantId";
+            parameters["@tenantId"] = _options.TenantId;
+        }
+
+        var rows = await _executor.QueryAsync(sql, parameters, cancellationToken);
 
         if (rows.Count == 0)
         {

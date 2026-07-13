@@ -40,7 +40,15 @@ public sealed class SqlPolicyProvider : IPolicyProvider
             var sql =
                 $"SELECT {SqlIdentifier.Quote(_options.ResourceNameColumn)}, {SqlIdentifier.Quote(_options.PolicyYamlColumn)} " +
                 $"FROM {SqlIdentifier.Quote(_options.Table)}";
-            rows = await _executor.QueryAsync(sql, new Dictionary<string, object?>(), cancellationToken);
+            var parameters = new Dictionary<string, object?>();
+
+            if (_options.TenantId is not null)
+            {
+                sql += $" WHERE {SqlIdentifier.Quote(_options.TenantIdColumn)} = @tenantId";
+                parameters["@tenantId"] = _options.TenantId;
+            }
+
+            rows = await _executor.QueryAsync(sql, parameters, cancellationToken);
         }
         catch (Exception ex)
         {
