@@ -22,6 +22,10 @@ public class SqlServerAttributeProviderTests
                 : Array.Empty<IReadOnlyDictionary<string, object?>>();
             return Task.FromResult(response);
         }
+
+        public Task ExecuteAsync(
+            string commandText, IReadOnlyDictionary<string, object?> parameters, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("SqlServerAttributeProvider is read-only; this fake doesn't need to support writes.");
     }
 
     private static SqlAttributeProviderOptions OptionsWithRoles() => new()

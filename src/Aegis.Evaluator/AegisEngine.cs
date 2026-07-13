@@ -1,5 +1,6 @@
 using System.Security.Claims;
 
+using Aegis.Audit;
 using Aegis.Policies;
 using Aegis.Relationships;
 
@@ -12,17 +13,20 @@ public sealed class AegisEngine : IDisposable
     private readonly PolicyEvaluator _evaluator;
     private readonly IReadOnlyList<IAttributeProvider> _attributeProviders;
     private readonly DecisionCache? _cache;
+    private readonly IAuditLogStore? _auditLogStore;
 
     private AegisEngine(
         IReadOnlyList<ResourcePolicy> policies,
         PolicyEvaluator evaluator,
         IReadOnlyList<IAttributeProvider> attributeProviders,
-        DecisionCache? cache = null)
+        DecisionCache? cache = null,
+        IAuditLogStore? auditLogStore = null)
     {
         _policies = policies;
         _evaluator = evaluator;
         _attributeProviders = attributeProviders;
         _cache = cache;
+        _auditLogStore = auditLogStore;
     }
 
     /// <summary>
@@ -33,7 +37,7 @@ public sealed class AegisEngine : IDisposable
     /// not just re-evaluation.
     /// </summary>
     public AegisEngine WithDecisionCache(DecisionCacheOptions options) =>
-        new(_policies, _evaluator, _attributeProviders, new DecisionCache(options));
+        new(_policies, _evaluator, _attributeProviders, new DecisionCache(options), _auditLogStore);
 
     /// <summary>
     /// Returns a new engine, sharing this one's policies, attribute
@@ -48,8 +52,24 @@ public sealed class AegisEngine : IDisposable
     {
         var entityParents = await relationshipProvider.LoadEntityParentsAsync(cancellationToken);
         var graph = new RelationshipGraph(entityParents);
-        return new AegisEngine(_policies, new PolicyEvaluator(_policies, graph), _attributeProviders, _cache);
+        return new AegisEngine(
+            _policies, new PolicyEvaluator(_policies, graph), _attributeProviders, _cache, _auditLogStore);
     }
+
+    /// <summary>
+    /// Returns a new engine, sharing this one's policies/attribute providers/
+    /// cache, that records every decision to <paramref name="store"/> --
+    /// including decisions served from <see cref="WithDecisionCache"/>, not
+    /// just freshly-evaluated ones, since skipping cache hits would leave
+    /// silent gaps in the audit trail for repeat access. The write is
+    /// awaited, not fire-and-forget: a failed audit write fails the
+    /// authorization call rather than silently losing a compliance record.
+    /// That's a real latency/availability tradeoff for a store that's slow
+    /// or down -- an intentional default for a compliance feature, not an
+    /// oversight.
+    /// </summary>
+    public AegisEngine WithAuditLog(IAuditLogStore store) =>
+        new(_policies, _evaluator, _attributeProviders, _cache, store);
 
     public void Dispose() => _cache?.Dispose();
 
@@ -122,18 +142,38 @@ public sealed class AegisEngine : IDisposable
         var cacheKey = _cache is null
             ? null
             : DecisionCache.BuildKey(principal, resource, action, actionProperties, context);
+
+        AuthorizationDecision decision;
         if (cacheKey is not null && _cache!.TryGet(cacheKey, out var cachedDecision))
         {
-            return cachedDecision;
+            decision = cachedDecision;
+        }
+        else
+        {
+            var enrichedPrincipal = await AttributeEnricher.EnrichAsync(principal, _attributeProviders, cancellationToken);
+            var enrichedResource = await AttributeEnricher.EnrichAsync(resource, _attributeProviders, cancellationToken);
+            decision = _evaluator.Authorize(enrichedPrincipal, enrichedResource, action, actionProperties, context);
+
+            if (cacheKey is not null)
+            {
+                _cache!.Set(cacheKey, decision);
+            }
         }
 
-        principal = await AttributeEnricher.EnrichAsync(principal, _attributeProviders, cancellationToken);
-        resource = await AttributeEnricher.EnrichAsync(resource, _attributeProviders, cancellationToken);
-        var decision = _evaluator.Authorize(principal, resource, action, actionProperties, context);
-
-        if (cacheKey is not null)
+        if (_auditLogStore is not null)
         {
-            _cache!.Set(cacheKey, decision);
+            await _auditLogStore.RecordAsync(
+                new AuditLogEntry
+                {
+                    PrincipalId = principal.Id,
+                    ResourceKind = resource.Kind,
+                    ResourceId = resource.Id,
+                    Action = action,
+                    Allowed = decision.Allowed,
+                    Explanation = decision.Explanation,
+                    Timestamp = DateTimeOffset.UtcNow,
+                },
+                cancellationToken);
         }
 
         return decision;

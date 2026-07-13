@@ -39,8 +39,10 @@ src/
   Aegis.Evaluator      PolicyEvaluator (decision engine), PolicyValidator, opt-in decision
                       caching (AegisEngine.WithDecisionCache), AegisEngine facade,
                       MultiTenantAegisEngine (one isolated engine per tenant, #19)
-  Aegis.Sql            SQL Server-backed IAttributeProvider + IPolicyProvider, both with
-                      optional per-tenant scoping
+  Aegis.Audit          AuditLogEntry/AuditLogQuery model, pluggable IAuditLogStore,
+                      InMemoryAuditLogStore (AegisEngine.WithAuditLog, #23)
+  Aegis.Sql            SQL Server-backed IAttributeProvider + IPolicyProvider + IAuditLogStore,
+                      all three with optional per-tenant scoping
   Aegis.AspNetCore     services.AddAegis(...) DI registration, HttpContext.User authorization
   Aegis.AuthZen        MapAuthZenEndpoints() -- Authorization API 1.0 evaluation endpoints, #20
   Aegis.Cli            `aegis validate`/`aegis authorize` -- a dotnet tool (AegisCli)
@@ -159,6 +161,17 @@ app.MapAuthZenEndpoints(); // POST /access/v1/evaluation, POST /access/v1/evalua
 app.Run();
 ```
 
+For a persisted, queryable audit trail (`Aegis.Audit`):
+
+```csharp
+var engine = AegisEngine.Create("Policies")
+    .WithAuditLog(new SqlAuditLogStore(new SqlAuditLogStoreOptions { ConnectionString = "..." }));
+
+// ... AuthorizeAsync calls happen as normal, each one recorded ...
+
+var recent = await auditLogStore.QueryAsync(new AuditLogQuery { PrincipalId = "officer-1" });
+```
+
 ## Compliance notes for regulated finance
 
 Three patterns regulated-finance deployments care about, and where each one
@@ -166,8 +179,13 @@ stands today versus the roadmap below:
 
 - **Audit trail.** Every decision already carries a `DecisionExplanation` —
   which policy and rule matched, and the result of every condition
-  evaluated. That's an audit record for free on every call today; what's
-  missing is a persistence layer for it, which is Phase 4's "Audit logs."
+  evaluated. `AegisEngine.WithAuditLog(store)` persists one via any
+  `IAuditLogStore` (`InMemoryAuditLogStore` for tests, `Aegis.Sql`'s
+  `SqlAuditLogStore` for a real deployment), so decisions are queryable
+  after the fact -- see [Getting started](#getting-started) below. Every
+  call is recorded, including ones served from `WithDecisionCache`, not
+  just fresh evaluations -- skipping cache hits would leave silent gaps
+  for repeat access.
 - **Segregation of duties.** No special engine feature — it's just an ABAC
   condition, as in the loan sample's `principal.id != resource.applicantId`.
   Any "can't act on your own thing" rule follows the same shape.

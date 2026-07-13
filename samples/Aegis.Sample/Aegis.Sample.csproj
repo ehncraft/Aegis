@@ -4,6 +4,7 @@
     <ProjectReference Include="..\..\src\Aegis.Core\Aegis.Core.csproj" />
     <ProjectReference Include="..\..\src\Aegis.Evaluator\Aegis.Evaluator.csproj" />
     <ProjectReference Include="..\..\src\Aegis.Relationships\Aegis.Relationships.csproj" />
+    <ProjectReference Include="..\..\src\Aegis.Audit\Aegis.Audit.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
