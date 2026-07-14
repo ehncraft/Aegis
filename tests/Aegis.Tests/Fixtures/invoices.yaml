@@ -10,3 +10,6 @@ actions:
   approve:
     allow:
       when: principal.department == resource.department
+    forbid:
+      roles:
+        - Suspended

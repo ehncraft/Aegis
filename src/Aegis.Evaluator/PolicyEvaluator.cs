@@ -58,7 +58,7 @@ public sealed class PolicyEvaluator
 
         var policyName = policy.Name ?? policy.Resource;
 
-        if (!policy.Actions.TryGetValue(action, out var rule) || rule.Allow is null)
+        if (!policy.Actions.TryGetValue(action, out var rule) || (rule.Allow is null && rule.Forbid is null))
         {
             return AuthorizationDecision.Deny(new DecisionExplanation
             {
@@ -69,35 +69,62 @@ public sealed class PolicyEvaluator
         }
 
         var conditions = new List<ConditionExplanation>();
-        var allowed = false;
         var evaluationContext = BuildContext(
             principal, resource, action, actionProperties, context, _variableScopesByResource[policy.Resource]);
 
-        if (rule.Allow.Roles is { Count: > 0 } roles)
+        var allowed = false;
+
+        if (rule.Allow is not null)
         {
-            allowed |= EvaluateRoles(roles, policy, principal, evaluationContext, conditions);
+            if (rule.Allow.Roles is { Count: > 0 } allowRoles)
+            {
+                allowed |= EvaluateRoles(allowRoles, policy, principal, evaluationContext, conditions, effectPrefix: null);
+            }
+
+            if (!string.IsNullOrWhiteSpace(rule.Allow.When))
+            {
+                var compiled = GetOrCompile(rule.Allow.When);
+                var whenResult = compiled.EvaluateBoolean(evaluationContext);
+                conditions.Add(new ConditionExplanation { Expression = compiled.Source, Result = whenResult });
+                allowed |= whenResult;
+            }
         }
 
-        if (!string.IsNullOrWhiteSpace(rule.Allow.When))
+        var forbidden = false;
+
+        if (rule.Forbid is not null)
         {
-            var compiled = GetOrCompile(rule.Allow.When);
-            var whenResult = compiled.EvaluateBoolean(evaluationContext);
-            conditions.Add(new ConditionExplanation { Expression = compiled.Source, Result = whenResult });
-            allowed |= whenResult;
+            if (rule.Forbid.Roles is { Count: > 0 } forbidRoles)
+            {
+                forbidden |= EvaluateRoles(forbidRoles, policy, principal, evaluationContext, conditions, "forbid");
+            }
+
+            if (!string.IsNullOrWhiteSpace(rule.Forbid.When))
+            {
+                var compiled = GetOrCompile(rule.Forbid.When);
+                var whenResult = compiled.EvaluateBoolean(evaluationContext);
+                conditions.Add(new ConditionExplanation { Expression = $"forbid: {compiled.Source}", Result = whenResult });
+                forbidden |= whenResult;
+            }
         }
 
         // An allow block with neither `roles` nor `when` matches nothing —
         // deny by default rather than treating it as an unconditional allow.
+        // A matching `forbid` always wins over a matching `allow`, the same
+        // as Cedar's `forbid` overriding any `permit`.
+        var effectAllowed = allowed && !forbidden;
         var explanation = new DecisionExplanation
         {
-            Effect = allowed ? "allow" : "deny",
+            Effect = effectAllowed ? "allow" : "deny",
             MatchedPolicy = policyName,
             MatchedRule = action,
             Conditions = conditions,
-            Reason = allowed ? null : "No allow condition was satisfied",
+            Reason = effectAllowed
+                ? null
+                : forbidden ? "Denied by forbid rule" : "No allow condition was satisfied",
         };
 
-        return allowed ? AuthorizationDecision.Allow(explanation) : AuthorizationDecision.Deny(explanation);
+        return effectAllowed ? AuthorizationDecision.Allow(explanation) : AuthorizationDecision.Deny(explanation);
     }
 
     /// <summary>
@@ -107,20 +134,27 @@ public sealed class PolicyEvaluator
     /// does it switch to explaining each entry individually -- a static
     /// role as "principal.roles contains 'X'", a derived one as its
     /// underlying condition.
+    ///
+    /// <paramref name="effectPrefix"/> is <c>null</c> for an <c>allow</c>
+    /// rule (unprefixed, unchanged from before <c>forbid</c> existed) and
+    /// <c>"forbid"</c> for a <c>forbid</c> rule, so a decision's flat
+    /// <see cref="ConditionExplanation"/> list stays unambiguous about which
+    /// effect each entry came from.
     /// </summary>
     private bool EvaluateRoles(
         List<string> roles,
         ResourcePolicy policy,
         AegisPrincipal principal,
         EvaluationContext context,
-        List<ConditionExplanation> conditions)
+        List<ConditionExplanation> conditions,
+        string? effectPrefix)
     {
         if (!roles.Any(policy.DerivedRoles.ContainsKey))
         {
             var roleMatch = principal.Roles.Any(r => roles.Contains(r, StringComparer.OrdinalIgnoreCase));
             conditions.Add(new ConditionExplanation
             {
-                Expression = $"principal.roles intersects [{string.Join(", ", roles)}]",
+                Expression = WithPrefix(effectPrefix, $"principal.roles intersects [{string.Join(", ", roles)}]"),
                 Result = roleMatch,
             });
             return roleMatch;
@@ -142,12 +176,15 @@ public sealed class PolicyEvaluator
                 expression = $"principal.roles contains '{roleName}'";
             }
 
-            conditions.Add(new ConditionExplanation { Expression = expression, Result = result });
+            conditions.Add(new ConditionExplanation { Expression = WithPrefix(effectPrefix, expression), Result = result });
             anyMatch |= result;
         }
 
         return anyMatch;
     }
+
+    private static string WithPrefix(string? effectPrefix, string expression) =>
+        effectPrefix is null ? expression : $"{effectPrefix}: {expression}";
 
     /// <summary>
     /// ABAC-style (<see cref="DerivedRoleDefinition.When"/>) evaluates a

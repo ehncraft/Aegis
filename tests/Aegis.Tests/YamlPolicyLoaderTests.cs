@@ -20,6 +20,14 @@ public class YamlPolicyLoaderTests
     }
 
     [Fact]
+    public void LoadFile_ParsesForbidRule()
+    {
+        var policy = YamlPolicyLoader.LoadFile(Path.Combine(FixturesPath, "invoices.yaml"));
+
+        Assert.Equal(["Suspended"], policy.Actions["approve"].Forbid!.Roles);
+    }
+
+    [Fact]
     public void LoadDirectory_LoadsEveryYamlFile()
     {
         var policies = YamlPolicyLoader.LoadDirectory(FixturesPath);

@@ -310,4 +310,54 @@ public class PolicyValidatorTests
         Assert.Single(ex.Errors);
         Assert.Contains("missing", ex.Errors[0]);
     }
+
+    [Fact]
+    public void Validate_ActionRuleWithOnlyForbid_NoAllow_DoesNotThrow()
+    {
+        var policy = ValidPolicy();
+        policy.Actions["delete"] = new ActionRule { Forbid = new ForbidRule { Roles = ["Suspended"] } };
+
+        var exception = Record.Exception(() => PolicyValidator.Validate([policy]));
+
+        Assert.Null(exception);
+    }
+
+    [Fact]
+    public void Validate_ActionRuleWithNeitherAllowNorForbid_ThrowsMentioningTypoLikelihood()
+    {
+        var policy = ValidPolicy();
+        policy.Actions["delete"] = new ActionRule();
+
+        var ex = Assert.Throws<PolicyValidationException>(() => PolicyValidator.Validate([policy]));
+
+        Assert.Single(ex.Errors);
+        Assert.Contains("delete", ex.Errors[0]);
+        Assert.Contains("typo", ex.Errors[0], StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Validate_InvalidForbidWhenExpression_ThrowsWithResourceAndActionInMessage()
+    {
+        var policy = ValidPolicy();
+        policy.Actions["approve"].Forbid = new ForbidRule { When = "resource.locked ==" };
+
+        var ex = Assert.Throws<PolicyValidationException>(() => PolicyValidator.Validate([policy]));
+
+        Assert.Single(ex.Errors);
+        Assert.Contains("invoices", ex.Errors[0]);
+        Assert.Contains("approve", ex.Errors[0]);
+    }
+
+    [Fact]
+    public void Validate_UndefinedVariableInForbidWhen_Throws()
+    {
+        var policy = ValidPolicy();
+        policy.Actions["approve"].Forbid = new ForbidRule { When = "${missing}" };
+
+        var ex = Assert.Throws<PolicyValidationException>(() => PolicyValidator.Validate([policy]));
+
+        Assert.Single(ex.Errors);
+        Assert.Contains("missing", ex.Errors[0]);
+        Assert.Contains("approve", ex.Errors[0]);
+    }
 }
