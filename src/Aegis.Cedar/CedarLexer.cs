@@ -317,9 +317,13 @@ internal sealed class CedarLexer
 
         _pos++;
         var hexStart = _pos;
+
+        // The closing '"' also ends the scan (not just end-of-input) so a
+        // missing '}' is reported as an unterminated escape instead of
+        // scanning past the string into whatever source follows it.
         while (Current != '}')
         {
-            if (_pos >= _text.Length)
+            if (_pos >= _text.Length || Current == '"')
             {
                 throw new CedarSyntaxException("Unterminated unicode escape, expected '}'", stringStart);
             }
@@ -329,7 +333,13 @@ internal sealed class CedarLexer
 
         var hex = _text[hexStart.._pos];
         _pos++; // closing '}'
-        return (char)int.Parse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+
+        if (hex.Length == 0 || !int.TryParse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var codepoint))
+        {
+            throw new CedarSyntaxException($"Invalid unicode escape '\\u{{{hex}}}'", stringStart);
+        }
+
+        return (char)codepoint;
     }
 
     private CedarToken ReadLong(int start)

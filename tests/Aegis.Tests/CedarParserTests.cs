@@ -347,6 +347,99 @@ public class CedarParserTests
         Assert.Throws<CedarSyntaxException>(() => CedarParser.Parse("permit(principal, action, resource)"));
     }
 
+    [Fact]
+    public void Parse_InvalidEffectKeyword_Throws()
+    {
+        var ex = Assert.Throws<CedarSyntaxException>(
+            () => CedarParser.Parse("allow(principal, action, resource);"));
+
+        Assert.True(ex.Position >= 0);
+    }
+
+    [Fact]
+    public void Parse_NotEqual_ParsesNotEqualOperator()
+    {
+        Assert.Equal(CedarBinaryOperator.NotEqual, Assert.IsType<CedarBinaryExpr>(ParseBody("1 != 2")).Operator);
+    }
+
+    [Fact]
+    public void Parse_LessEqual_ParsesLessEqualOperator()
+    {
+        Assert.Equal(CedarBinaryOperator.LessEqual, Assert.IsType<CedarBinaryExpr>(ParseBody("1 <= 2")).Operator);
+    }
+
+    [Fact]
+    public void Parse_Greater_ParsesGreaterOperator()
+    {
+        Assert.Equal(CedarBinaryOperator.Greater, Assert.IsType<CedarBinaryExpr>(ParseBody("2 > 1")).Operator);
+    }
+
+    [Fact]
+    public void Parse_GreaterEqual_ParsesGreaterEqualOperator()
+    {
+        Assert.Equal(CedarBinaryOperator.GreaterEqual, Assert.IsType<CedarBinaryExpr>(ParseBody("2 >= 1")).Operator);
+    }
+
+    [Fact]
+    public void Parse_BinarySubtraction_ParsesSubtractOperator()
+    {
+        var subtract = Assert.IsType<CedarBinaryExpr>(ParseBody("5 - 2"));
+
+        Assert.Equal(CedarBinaryOperator.Subtract, subtract.Operator);
+    }
+
+    [Fact]
+    public void Parse_ActionInSingularEntity_ParsesInScope_NotInSetScope()
+    {
+        var policy = ParseSingle("permit(principal, action in Action::\"view\", resource);");
+
+        var scope = Assert.IsType<CedarInScope>(policy.ActionScope);
+        Assert.Equal("view", scope.Entity.Id);
+    }
+
+    [Fact]
+    public void Parse_ActionAndContextVars_ParseAsBarePrimaries()
+    {
+        var and = Assert.IsType<CedarBinaryExpr>(ParseBody("action.name == \"view\" && context.mfa"));
+
+        var actionAttr = Assert.IsType<CedarAttrExpr>(Assert.IsType<CedarBinaryExpr>(and.Left).Left);
+        Assert.Equal(CedarVar.Action, Assert.IsType<CedarVarExpr>(actionAttr.Target).Variable);
+
+        var contextAttr = Assert.IsType<CedarAttrExpr>(and.Right);
+        Assert.Equal(CedarVar.Context, Assert.IsType<CedarVarExpr>(contextAttr.Target).Variable);
+    }
+
+    [Fact]
+    public void Parse_StringEscapes_DecodeToExpectedCharacters()
+    {
+        var literal = Assert.IsType<CedarLiteralExpr>(ParseBody("\"a\\nb\\tc\\rd\\\\e\\\"f\\u{0041}\""));
+
+        Assert.Equal("a\nb\tc\rd\\e\"fA", literal.Value);
+    }
+
+    [Fact]
+    public void Parse_LineComment_IsSkipped()
+    {
+        var policies = CedarParser.Parse(
+            "// a comment about this policy\n" +
+            "permit(principal, action, resource); // trailing comment\n");
+
+        Assert.Single(policies);
+    }
+
+    [Fact]
+    public void Parse_UnsupportedEscapeSequence_Throws()
+    {
+        Assert.Throws<CedarSyntaxException>(() => CedarParser.Parse("permit(principal, action, resource) when { \"\\q\" };"));
+    }
+
+    [Fact]
+    public void Parse_UnterminatedUnicodeEscape_Throws()
+    {
+        Assert.Throws<CedarSyntaxException>(
+            () => CedarParser.Parse("permit(principal, action, resource) when { \"\\u{41\" };"));
+    }
+
     private static CedarPolicy ParseSingle(string source) => Assert.Single(CedarParser.Parse(source));
 
     private static CedarExpr ParseBody(string expression) =>
