@@ -6,6 +6,7 @@
     <Project Path="src/Aegis.AspNetCore/Aegis.AspNetCore.csproj" />
     <Project Path="src/Aegis.Audit/Aegis.Audit.csproj" />
     <Project Path="src/Aegis.AuthZen/Aegis.AuthZen.csproj" />
+    <Project Path="src/Aegis.Cedar/Aegis.Cedar.csproj" />
     <Project Path="src/Aegis.Cli/Aegis.Cli.csproj" />
     <Project Path="src/Aegis.Core/Aegis.Core.csproj" />
     <Project Path="src/Aegis.Dashboard/Aegis.Dashboard.csproj" />
