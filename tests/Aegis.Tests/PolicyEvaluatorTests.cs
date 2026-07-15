@@ -386,4 +386,124 @@ public class PolicyEvaluatorTests
 
         Assert.False(decision.Allowed);
     }
+
+    private static ResourcePolicy PolicyWithForbidRole() => new()
+    {
+        Resource = "invoices",
+        Name = "invoice-policy",
+        Actions = new Dictionary<string, ActionRule>
+        {
+            ["approve"] = new()
+            {
+                Allow = new AllowRule { Roles = ["Finance"] },
+                Forbid = new ForbidRule { Roles = ["Suspended"] },
+            },
+        },
+    };
+
+    [Fact]
+    public void Forbid_OverridesAnOtherwiseMatchingAllow_Roles()
+    {
+        var evaluator = new PolicyEvaluator([PolicyWithForbidRole()]);
+        var principal = AegisPrincipal.Create("alice", roles: ["Finance", "Suspended"]);
+        var resource = AegisResource.Create("invoices", "INV-1");
+
+        var decision = evaluator.Authorize(principal, resource, "approve");
+
+        Assert.False(decision.Allowed);
+        Assert.Equal("Denied by forbid rule", decision.Explanation.Reason);
+    }
+
+    [Fact]
+    public void Forbid_OverridesAnOtherwiseMatchingAllow_When()
+    {
+        var policy = new ResourcePolicy
+        {
+            Resource = "invoices",
+            Actions = new Dictionary<string, ActionRule>
+            {
+                ["approve"] = new()
+                {
+                    Allow = new AllowRule { When = "principal.department == resource.department" },
+                    Forbid = new ForbidRule { When = "resource.locked == true" },
+                },
+            },
+        };
+        var evaluator = new PolicyEvaluator([policy]);
+        var principal = AegisPrincipal.Create(
+            "alice", attributes: new Dictionary<string, object?> { ["department"] = "finance" });
+        var resource = AegisResource.Create("invoices", "INV-1", attributes: new Dictionary<string, object?>
+        {
+            ["department"] = "finance",
+            ["locked"] = true,
+        });
+
+        var decision = evaluator.Authorize(principal, resource, "approve");
+
+        Assert.False(decision.Allowed);
+        Assert.Equal("Denied by forbid rule", decision.Explanation.Reason);
+    }
+
+    [Fact]
+    public void Forbid_DoesNotFire_WhenItsConditionDoesNotMatch_AllowStillWins()
+    {
+        var evaluator = new PolicyEvaluator([PolicyWithForbidRole()]);
+        var principal = AegisPrincipal.Create("alice", roles: ["Finance"]);
+        var resource = AegisResource.Create("invoices", "INV-1");
+
+        var decision = evaluator.Authorize(principal, resource, "approve");
+
+        Assert.True(decision.Allowed);
+        Assert.Null(decision.Explanation.Reason);
+    }
+
+    [Fact]
+    public void Forbid_NotMatching_WithNoMatchingAllow_DeniesWithDefaultReason_NotForbidReason()
+    {
+        var evaluator = new PolicyEvaluator([PolicyWithForbidRole()]);
+        var principal = AegisPrincipal.Create("bob", roles: ["Sales"]);
+        var resource = AegisResource.Create("invoices", "INV-1");
+
+        var decision = evaluator.Authorize(principal, resource, "approve");
+
+        Assert.False(decision.Allowed);
+        Assert.Equal("No allow condition was satisfied", decision.Explanation.Reason);
+    }
+
+    [Fact]
+    public void Forbid_ConditionExplanations_ArePrefixed_AllowExplanationsAreNot()
+    {
+        var evaluator = new PolicyEvaluator([PolicyWithForbidRole()]);
+        var principal = AegisPrincipal.Create("alice", roles: ["Finance", "Suspended"]);
+        var resource = AegisResource.Create("invoices", "INV-1");
+
+        var decision = evaluator.Authorize(principal, resource, "approve");
+
+        Assert.Equal(2, decision.Explanation.Conditions.Count);
+        Assert.Equal("principal.roles intersects [Finance]", decision.Explanation.Conditions[0].Expression);
+        Assert.True(decision.Explanation.Conditions[0].Result);
+        Assert.Equal("forbid: principal.roles intersects [Suspended]", decision.Explanation.Conditions[1].Expression);
+        Assert.True(decision.Explanation.Conditions[1].Result);
+    }
+
+    [Fact]
+    public void ActionRule_ForbidOnly_NoAllow_AlwaysDenies()
+    {
+        var policy = new ResourcePolicy
+        {
+            Resource = "invoices",
+            Actions = new Dictionary<string, ActionRule>
+            {
+                ["approve"] = new() { Forbid = new ForbidRule { Roles = ["Suspended"] } },
+            },
+        };
+        var evaluator = new PolicyEvaluator([policy]);
+        var principal = AegisPrincipal.Create("alice", roles: ["Finance"]);
+        var resource = AegisResource.Create("invoices", "INV-1");
+
+        var decision = evaluator.Authorize(principal, resource, "approve");
+
+        Assert.False(decision.Allowed);
+        Assert.Equal("No allow condition was satisfied", decision.Explanation.Reason);
+    }
 }

@@ -70,36 +70,47 @@ public static class PolicyValidator
 
             foreach (var (actionName, rule) in policy.Actions)
             {
-                if (rule.Allow is null)
+                if (rule.Allow is null && rule.Forbid is null)
                 {
                     errors.Add(
                         $"Resource '{policy.Resource}' ({source}), action '{actionName}': no recognized effect " +
-                        "(expected an 'allow' rule) -- check for a typo'd key.");
+                        "(expected an 'allow' or 'forbid' rule) -- check for a typo'd key.");
                     continue;
                 }
 
-                if (string.IsNullOrWhiteSpace(rule.Allow.When))
-                {
-                    continue;
-                }
-
-                try
-                {
-                    var compiled = CompiledExpression.Parse(rule.Allow.When);
-                    CheckUndefinedVariables(policy, source, $"action '{actionName}'", compiled, errors);
-                }
-                catch (ExpressionSyntaxException ex)
-                {
-                    errors.Add(
-                        $"Resource '{policy.Resource}' ({source}), action '{actionName}': invalid 'when' " +
-                        $"expression '{rule.Allow.When}' -- {ex.Message}");
-                }
+                ValidateActionEffectWhen(policy, source, actionName, "allow", rule.Allow?.When, errors);
+                ValidateActionEffectWhen(policy, source, actionName, "forbid", rule.Forbid?.When, errors);
             }
         }
 
         if (errors.Count > 0)
         {
             throw new PolicyValidationException(errors);
+        }
+    }
+
+    /// <summary>
+    /// Shared by <c>allow.when</c> and <c>forbid.when</c> -- <paramref name="effectName"/>
+    /// is <c>"allow"</c> or <c>"forbid"</c>, used only in error messages.
+    /// </summary>
+    private static void ValidateActionEffectWhen(
+        ResourcePolicy policy, string source, string actionName, string effectName, string? when, List<string> errors)
+    {
+        if (string.IsNullOrWhiteSpace(when))
+        {
+            return;
+        }
+
+        try
+        {
+            var compiled = CompiledExpression.Parse(when);
+            CheckUndefinedVariables(policy, source, $"action '{actionName}' {effectName}", compiled, errors);
+        }
+        catch (ExpressionSyntaxException ex)
+        {
+            errors.Add(
+                $"Resource '{policy.Resource}' ({source}), action '{actionName}' '{effectName}': invalid 'when' " +
+                $"expression '{when}' -- {ex.Message}");
         }
     }
 

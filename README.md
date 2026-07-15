@@ -25,9 +25,12 @@ directly rather than tree-walked on every request. Policies can also share
 reusable `${name}` variables and derived roles (roles computed from a
 condition, or from Cedar-style entity-hierarchy membership, rather than held
 directly by the principal) via `imports:` -- see
-[Policy as Code](#policy-as-code) below. `Aegis.Dashboard` is a Blazor
-Server admin UI for browsing policies, relationships, and decision history
--- no policy editor yet (that's #22).
+[Policy as Code](#policy-as-code) below. An action rule can also `forbid:`
+(roles and/or a `when` condition, same shape as `allow:`) -- a matching
+`forbid` always overrides a matching `allow`, groundwork for #91's Cedar
+`permit`/`forbid` mapping onto Aegis's own model. `Aegis.Dashboard` is a
+Blazor Server admin UI for browsing policies, relationships, and decision
+history -- no policy editor yet (that's #22).
 
 ```
 src/
@@ -36,8 +39,8 @@ src/
   Aegis.Expressions    Tokenizer, parser, IR lowering/semantic analysis/constant-folding
                       optimizer, and an expression-tree compiler for condition expressions
                       (member paths, literals, `${name}` variable references, #3)
-  Aegis.Policies       ResourcePolicy/ActionRule/AllowRule/DerivedRoleDefinition model,
-                      IPolicyProvider, YAML loader (variables/derivedRoles/imports)
+  Aegis.Policies       ResourcePolicy/ActionRule/AllowRule/ForbidRule/DerivedRoleDefinition
+                      model, IPolicyProvider, YAML loader (variables/derivedRoles/imports)
   Aegis.Relationships  Cedar-style entity hierarchy (EntityUid/EntityParent), pluggable
                       IRelationshipProvider, RelationshipGraph (`in` membership, #15-#18)
   Aegis.Evaluator      PolicyEvaluator (decision engine), PolicyValidator, opt-in decision
@@ -321,7 +324,13 @@ actions:
     allow:
       when:
         principal.department == resource.department
+    forbid:
+      roles:
+        - Suspended
 ```
+
+A matching `forbid` always overrides a matching `allow` on the same action --
+an explicit deny, not just an unmatched permit.
 
 Policies become versioned, testable, and deployable through normal CI/CD pipelines.
 
