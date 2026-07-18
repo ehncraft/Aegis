@@ -20,7 +20,7 @@ jobs:
       contents: read
       security-events: write # required to upload SARIF to the Security tab
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Advisory, not a required status check -- same posture as CodeQL.
       # Dependabot already opens PRs for known-vulnerable dependencies; this
