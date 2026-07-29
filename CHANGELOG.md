@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.0](https://github.com/ehncraft/Aegis/compare/v0.12.0...v0.13.0) (2026-07-29)
+
+
+### Features
+
+* action-group expansion and resource-kind batch inference for Cedar lowering ([#106](https://github.com/ehncraft/Aegis/issues/106)) ([321fcc3](https://github.com/ehncraft/Aegis/commit/321fcc3e549a55059fea78fa885fcb9c9d03891b))
+
 ## [0.12.0](https://github.com/ehncraft/Aegis/compare/v0.11.0...v0.12.0) (2026-07-29)
 
 
