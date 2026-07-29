@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.11.0](https://github.com/ehncraft/Aegis/compare/v0.10.0...v0.11.0) (2026-07-15)
+
+
+### Features
+
+* Cedar lexer, AST, and parser ([#94](https://github.com/ehncraft/Aegis/issues/94) milestone 1) ([#95](https://github.com/ehncraft/Aegis/issues/95)) ([69cb263](https://github.com/ehncraft/Aegis/commit/69cb263bc224e46978124b71aa829dd1b3b2a03a))
+* compiler/IR pipeline for condition expressions ([#90](https://github.com/ehncraft/Aegis/issues/90)) ([8150503](https://github.com/ehncraft/Aegis/commit/815050323962a3f5c311376e12b861358b7261f6))
+* distributed decision cache + readiness health check (closes [#25](https://github.com/ehncraft/Aegis/issues/25), [#26](https://github.com/ehncraft/Aegis/issues/26)) ([#89](https://github.com/ehncraft/Aegis/issues/89)) ([9a8065d](https://github.com/ehncraft/Aegis/commit/9a8065d912c40a9076e2effd4a3e0c57ffb94d99))
+* explicit deny (forbid) rules on action policies ([#93](https://github.com/ehncraft/Aegis/issues/93)) ([f86b8d4](https://github.com/ehncraft/Aegis/commit/f86b8d4acb6c7a5ee5f047b51244ebf3098343dc))
+
 ## [0.10.0](https://github.com/ehncraft/Aegis/compare/v0.9.0...v0.10.0) (2026-07-13)
 
 
