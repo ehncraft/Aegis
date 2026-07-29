@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.0](https://github.com/ehncraft/Aegis/compare/v0.11.0...v0.12.0) (2026-07-29)
+
+
+### Features
+
+* lower Cedar policies onto Aegis's evaluator ([#94](https://github.com/ehncraft/Aegis/issues/94) milestone 2) ([#104](https://github.com/ehncraft/Aegis/issues/104)) ([65f8aed](https://github.com/ehncraft/Aegis/commit/65f8aedc3ace71dad2338c907e7a0e7cb0ccb7b0))
+
 ## [0.11.0](https://github.com/ehncraft/Aegis/compare/v0.10.0...v0.11.0) (2026-07-15)
 
 
