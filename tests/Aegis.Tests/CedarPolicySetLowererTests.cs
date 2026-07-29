@@ -118,6 +118,71 @@ public class CedarPolicySetLowererTests
             () => Lower("permit(principal, action == Action::\"view\", resource in Folder::\"shared\");"));
     }
 
+    [Fact]
+    public void Lower_ResourceAnyScope_NoDefault_InfersFromBatch()
+    {
+        var policies = Lower(
+            """
+            permit(principal, action == Action::"view", resource is documents);
+            permit(principal, action == Action::"archive", resource);
+            """);
+
+        var policy = Assert.Single(policies);
+        Assert.Equal("documents", policy.Resource, ignoreCase: true);
+        Assert.Equal(["archive", "view"], policy.Actions.Keys.OrderBy(k => k));
+    }
+
+    [Fact]
+    public void Lower_ResourceAnyScope_NoDefault_InfersAcrossMultipleKinds()
+    {
+        var policies = Lower(
+            """
+            permit(principal, action == Action::"view", resource is documents);
+            permit(principal, action == Action::"view", resource is folders);
+            permit(principal, action == Action::"manage", resource);
+            """);
+
+        Assert.Equal(["documents", "folders"], policies.Select(p => p.Resource).OrderBy(r => r, StringComparer.OrdinalIgnoreCase));
+        Assert.All(policies, p => Assert.Contains("manage", p.Actions.Keys));
+    }
+
+    [Fact]
+    public void Lower_ResourceAnyScope_DefaultConfigured_OverridesInference()
+    {
+        var policies = Lower(
+            """
+            permit(principal, action == Action::"view", resource is documents);
+            permit(principal, action == Action::"view", resource is folders);
+            permit(principal, action == Action::"manage", resource);
+            """,
+            new CedarLoadOptions { DefaultResourceKind = "documents" });
+
+        var manageResourceKinds = policies.Where(p => p.Actions.ContainsKey("manage")).Select(p => p.Resource);
+        Assert.Equal(["documents"], manageResourceKinds);
+    }
+
+    [Fact]
+    public async Task Lower_ResourceBareInScope_NoDefault_InfersFromBatchAsync()
+    {
+        var policies = Lower(
+            """
+            permit(principal, action == Action::"edit", resource is documents);
+            permit(principal, action == Action::"view", resource in Folder::"shared");
+            """);
+        var policy = Assert.Single(policies);
+        Assert.Equal("documents", policy.Resource, ignoreCase: true);
+        Assert.Equal(["edit", "view"], policy.Actions.Keys.OrderBy(k => k));
+
+        var entityParents = new[]
+        {
+            new EntityParent { Child = new EntityUid("documents", "doc-1"), Parent = new EntityUid("Folder", "shared") },
+        };
+        var engine = await EngineWithGraphAsync(policies, entityParents);
+        var decision = await engine.AuthorizeAsync(AegisPrincipal.Create("alice"), AegisResource.Create("documents", "doc-1"), "view");
+
+        Assert.True(decision.Allowed);
+    }
+
     // -- action scope -------------------------------------------------------
 
     [Fact]
@@ -152,12 +217,47 @@ public class CedarPolicySetLowererTests
     }
 
     [Fact]
-    public void Lower_ActionInScope_TreatedAsSingleAction()
+    public void Lower_ActionInScope_NoActionGroupsConfigured_TreatedAsSingleAction()
     {
         var policies = Lower("permit(principal, action in Action::\"view\", resource is documents);");
 
         var policy = Assert.Single(policies);
         Assert.Equal(["view"], policy.Actions.Keys);
+    }
+
+    [Fact]
+    public void Lower_ActionInScope_WithActionGroups_ExpandsToAllGroupMembers()
+    {
+        var actionGroups = new RelationshipGraph(
+        [
+            new EntityParent { Child = new EntityUid("Action", "approveChangeRequest"), Parent = new EntityUid("Action", "departmentManagement") },
+            new EntityParent { Child = new EntityUid("Action", "manageStaff"), Parent = new EntityUid("Action", "departmentManagement") },
+        ]);
+
+        var policies = Lower(
+            "permit(principal, action in Action::\"departmentManagement\", resource is departments);",
+            new CedarLoadOptions { ActionGroups = actionGroups });
+
+        var policy = Assert.Single(policies);
+        Assert.Equal(
+            ["approveChangeRequest", "departmentManagement", "manageStaff"],
+            policy.Actions.Keys.OrderBy(k => k));
+    }
+
+    [Fact]
+    public void Lower_ActionInScope_GroupWithNoMembers_StillMatchesGroupNameItself()
+    {
+        var actionGroups = new RelationshipGraph(
+        [
+            new EntityParent { Child = new EntityUid("Action", "departmentManagement"), Parent = new EntityUid("Action", "platformManagement") },
+        ]);
+
+        var policies = Lower(
+            "permit(principal, action in Action::\"departmentManagement\", resource is departments);",
+            new CedarLoadOptions { ActionGroups = actionGroups });
+
+        var policy = Assert.Single(policies);
+        Assert.Equal(["departmentManagement"], policy.Actions.Keys);
     }
 
     // -- principal scope ------------------------------------------------
@@ -387,6 +487,94 @@ public class CedarPolicySetLowererTests
         var resource = AegisResource.Create("LeaveRequest", "change-1");
 
         var decision = await engine.AuthorizeAsync(principal, resource, "reviewPlatformChangeRequest");
+
+        Assert.False(decision.Allowed);
+    }
+
+    // -- gap-closing scenario: action groups + resource-kind batch inference --
+    //
+    // A department-manager Role granted a bundle of permissions via a Cedar
+    // action group (the "fixed permission catalog, extensible roles" shape),
+    // plus a global platform-owner Role whose policy names no resource
+    // kind at all and must be inferred from every other kind this same
+    // batch establishes (Department, LeaveRequest).
+
+    private const string GapClosingScenarioCedar =
+        """
+        permit(principal in Role::"dept-manager", action in Action::"departmentManagement", resource is Department);
+
+        permit(principal, action == Action::"approveLeaveRequest", resource is LeaveRequest);
+
+        permit(principal in Role::"platform-owner", action == Action::"auditAnything", resource);
+        """;
+
+    private static IReadOnlyList<ResourcePolicy> GapClosingScenarioPolicies()
+    {
+        var actionGroups = new RelationshipGraph(
+        [
+            new EntityParent { Child = new EntityUid("Action", "approveChangeRequest"), Parent = new EntityUid("Action", "departmentManagement") },
+            new EntityParent { Child = new EntityUid("Action", "manageStaff"), Parent = new EntityUid("Action", "departmentManagement") },
+        ]);
+
+        return Lower(GapClosingScenarioCedar, new CedarLoadOptions { PrincipalEntityType = "Membership", ActionGroups = actionGroups });
+    }
+
+    [Fact]
+    public async Task GapClosingScenario_DeptManagerRole_GrantsEveryActionGroupMemberAsync()
+    {
+        var entityParents = new[]
+        {
+            new EntityParent { Child = new EntityUid("Membership", "mem-1"), Parent = new EntityUid("Role", "dept-manager") },
+        };
+        var engine = await EngineWithGraphAsync(GapClosingScenarioPolicies(), entityParents, principalEntityType: "Membership");
+        var principal = AegisPrincipal.Create("mem-1");
+        var resource = AegisResource.Create("Department", "dept-1");
+
+        var approveChangeRequest = await engine.AuthorizeAsync(principal, resource, "approveChangeRequest");
+        var manageStaff = await engine.AuthorizeAsync(principal, resource, "manageStaff");
+        var departmentManagementItself = await engine.AuthorizeAsync(principal, resource, "departmentManagement");
+
+        Assert.True(approveChangeRequest.Allowed);
+        Assert.True(manageStaff.Allowed);
+        Assert.True(departmentManagementItself.Allowed);
+    }
+
+    [Fact]
+    public async Task GapClosingScenario_NonManagerMembership_DeniedDepartmentActionsAsync()
+    {
+        var engine = await EngineWithGraphAsync(GapClosingScenarioPolicies(), [], principalEntityType: "Membership");
+        var principal = AegisPrincipal.Create("mem-1");
+        var resource = AegisResource.Create("Department", "dept-1");
+
+        var decision = await engine.AuthorizeAsync(principal, resource, "approveChangeRequest");
+
+        Assert.False(decision.Allowed);
+    }
+
+    [Fact]
+    public async Task GapClosingScenario_PlatformOwnerRole_GrantsAuditAcrossEveryInferredResourceKindAsync()
+    {
+        var entityParents = new[]
+        {
+            new EntityParent { Child = new EntityUid("Membership", "mem-3"), Parent = new EntityUid("Role", "platform-owner") },
+        };
+        var engine = await EngineWithGraphAsync(GapClosingScenarioPolicies(), entityParents, principalEntityType: "Membership");
+        var principal = AegisPrincipal.Create("mem-3");
+
+        var onDepartment = await engine.AuthorizeAsync(principal, AegisResource.Create("Department", "dept-1"), "auditAnything");
+        var onLeaveRequest = await engine.AuthorizeAsync(principal, AegisResource.Create("LeaveRequest", "lr-1"), "auditAnything");
+
+        Assert.True(onDepartment.Allowed);
+        Assert.True(onLeaveRequest.Allowed);
+    }
+
+    [Fact]
+    public async Task GapClosingScenario_NonOwnerMembership_DeniedAuditAsync()
+    {
+        var engine = await EngineWithGraphAsync(GapClosingScenarioPolicies(), [], principalEntityType: "Membership");
+        var principal = AegisPrincipal.Create("mem-3");
+
+        var decision = await engine.AuthorizeAsync(principal, AegisResource.Create("Department", "dept-1"), "auditAnything");
 
         Assert.False(decision.Allowed);
     }

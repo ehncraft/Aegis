@@ -11,10 +11,13 @@ namespace Aegis.Relationships;
 public sealed class RelationshipGraph
 {
     private readonly ILookup<EntityUid, EntityUid> _parentsByChild;
+    private readonly ILookup<EntityUid, EntityUid> _childrenByParent;
 
     public RelationshipGraph(IEnumerable<EntityParent> entityParents)
     {
-        _parentsByChild = entityParents.ToLookup(p => p.Child, p => p.Parent);
+        var entityParentList = entityParents as IReadOnlyCollection<EntityParent> ?? [.. entityParents];
+        _parentsByChild = entityParentList.ToLookup(p => p.Child, p => p.Parent);
+        _childrenByParent = entityParentList.ToLookup(p => p.Parent, p => p.Child);
     }
 
     public static RelationshipGraph Empty { get; } = new([]);
@@ -56,5 +59,35 @@ public sealed class RelationshipGraph
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Every entity reachable from <paramref name="ancestor"/> by walking
+    /// down the parent hierarchy (breadth-first, cycle-safe) -- the reverse
+    /// of <see cref="IsIn"/>'s traversal. Does not include
+    /// <paramref name="ancestor"/> itself.
+    /// </summary>
+    public IReadOnlySet<EntityUid> Descendants(EntityUid ancestor)
+    {
+        var visited = new HashSet<EntityUid> { ancestor };
+        var descendants = new HashSet<EntityUid>();
+        var queue = new Queue<EntityUid>();
+        queue.Enqueue(ancestor);
+
+        while (queue.Count > 0)
+        {
+            var current = queue.Dequeue();
+
+            foreach (var child in _childrenByParent[current])
+            {
+                if (visited.Add(child))
+                {
+                    descendants.Add(child);
+                    queue.Enqueue(child);
+                }
+            }
+        }
+
+        return descendants;
     }
 }

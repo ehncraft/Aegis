@@ -71,4 +71,64 @@ public class RelationshipGraphTests
         Assert.True(graph.IsIn(Alice, AuditCommittee));
         Assert.False(graph.IsIn(Bob, AuditCommittee));
     }
+
+    [Fact]
+    public void Descendants_EmptyGraph_ReturnsEmpty()
+    {
+        var graph = RelationshipGraph.Empty;
+
+        Assert.Empty(graph.Descendants(SeniorAuditors));
+    }
+
+    [Fact]
+    public void Descendants_DirectChildren_ReturnsThem()
+    {
+        var graph = new RelationshipGraph([
+            new EntityParent { Child = Alice, Parent = SeniorAuditors },
+            new EntityParent { Child = Bob, Parent = SeniorAuditors },
+        ]);
+
+        Assert.Equal(new HashSet<EntityUid> { Alice, Bob }, graph.Descendants(SeniorAuditors));
+    }
+
+    [Fact]
+    public void Descendants_TransitiveGrandchildren_ReturnsWholeSubtree()
+    {
+        var graph = new RelationshipGraph([
+            new EntityParent { Child = Alice, Parent = SeniorAuditors },
+            new EntityParent { Child = SeniorAuditors, Parent = AuditCommittee },
+        ]);
+
+        Assert.Equal(new HashSet<EntityUid> { Alice, SeniorAuditors }, graph.Descendants(AuditCommittee));
+    }
+
+    [Fact]
+    public void Descendants_DoesNotIncludeAncestorItself()
+    {
+        var graph = new RelationshipGraph([new EntityParent { Child = Alice, Parent = SeniorAuditors }]);
+
+        Assert.DoesNotContain(SeniorAuditors, graph.Descendants(SeniorAuditors));
+    }
+
+    [Fact]
+    public void Descendants_EntityWithNoChildren_ReturnsEmpty()
+    {
+        var graph = new RelationshipGraph([new EntityParent { Child = Alice, Parent = SeniorAuditors }]);
+
+        Assert.Empty(graph.Descendants(Alice));
+    }
+
+    [Fact]
+    public void Descendants_CyclicHierarchy_TerminatesAndDoesNotIncludeAncestor()
+    {
+        var graph = new RelationshipGraph([
+            new EntityParent { Child = Alice, Parent = SeniorAuditors },
+            new EntityParent { Child = SeniorAuditors, Parent = AuditCommittee },
+            new EntityParent { Child = AuditCommittee, Parent = SeniorAuditors }, // cycle
+        ]);
+
+        var descendants = graph.Descendants(SeniorAuditors);
+
+        Assert.Equal(new HashSet<EntityUid> { AuditCommittee, Alice }, descendants);
+    }
 }

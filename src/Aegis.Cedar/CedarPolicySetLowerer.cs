@@ -1,4 +1,5 @@
 using Aegis.Policies;
+using Aegis.Relationships;
 
 namespace Aegis.Cedar;
 
@@ -26,13 +27,15 @@ internal static class CedarPolicySetLowerer
     /// One resolved <c>permit</c>/<c>forbid</c>, after its scope
     /// constraints and <c>when</c>/<c>unless</c> conditions have all been
     /// folded down to a single <see cref="Condition"/> -- <c>null</c>
+    /// <see cref="ResourceKind"/> means the resource scope was unconstrained
+    /// (<c>CedarAnyScope</c>/bare <c>resource in ...</c>) with no configured
+    /// <see cref="CedarLoadOptions.DefaultResourceKind"/>, and <c>null</c>
     /// <see cref="ActionNames"/> means the action scope was unconstrained
-    /// (<c>CedarAnyScope</c>) and still needs expanding against this
-    /// resource kind's action vocabulary (see <see cref="Lower"/>'s second
-    /// pass).
+    /// (<c>CedarAnyScope</c>); both still need expanding against this
+    /// batch's vocabulary (see <see cref="Lower"/>'s later passes).
     /// </summary>
     private sealed record ResolvedClause(
-        string ResourceKind, IReadOnlyList<string>? ActionNames, CedarEffect Effect, CedarExpr Condition);
+        string? ResourceKind, IReadOnlyList<string>? ActionNames, CedarEffect Effect, CedarExpr Condition);
 
     public static IReadOnlyList<ResourcePolicy> Lower(IReadOnlyList<CedarPolicy> policies, CedarLoadOptions options)
     {
@@ -41,25 +44,72 @@ internal static class CedarPolicySetLowerer
         {
             var (resourceKind, resourceCondition) = ResolveResourceScope(policy.ResourceScope, options);
             var principalCondition = ResolvePrincipalScope(policy.PrincipalScope, options);
-            var actionNames = ResolveActionScope(policy.ActionScope);
+            var actionNames = ResolveActionScope(policy.ActionScope, options);
             var whenUnlessCondition = CombineWhenUnless(policy.Conditions);
             var condition = CombineAnd(principalCondition, resourceCondition, whenUnlessCondition);
 
             resolved.Add(new ResolvedClause(resourceKind, actionNames, policy.Effect, condition));
         }
 
-        var vocabularyByKind = BuildActionVocabulary(resolved);
-        var flattened = ExpandActionScopes(resolved, vocabularyByKind);
+        var resourceExpanded = ExpandResourceScopes(resolved);
+        var vocabularyByKind = BuildActionVocabulary(resourceExpanded);
+        var flattened = ExpandActionScopes(resourceExpanded, vocabularyByKind);
 
         return BuildResourcePolicies(flattened);
     }
 
     /// <summary>
-    /// Pass 1: the union of every concrete action name any policy in this
+    /// Pass 1: resolves every <c>ResourceKind is null</c> clause (a
+    /// resource-unconstrained policy with no configured
+    /// <see cref="CedarLoadOptions.DefaultResourceKind"/>) against the set
+    /// of resource kinds every other policy in this batch concretely
+    /// names -- the same "no schema, so infer from the batch" trick used for
+    /// an unconstrained action scope. A batch that establishes no concrete
+    /// resource kind at all still requires
+    /// <see cref="CedarLoadOptions.DefaultResourceKind"/>.
+    /// </summary>
+    private static List<(string ResourceKind, IReadOnlyList<string>? ActionNames, CedarEffect Effect, CedarExpr Condition)>
+        ExpandResourceScopes(IReadOnlyList<ResolvedClause> resolved)
+    {
+        var knownKinds = resolved
+            .Where(c => c.ResourceKind is not null)
+            .Select(c => c.ResourceKind!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var expanded = new List<(string, IReadOnlyList<string>?, CedarEffect, CedarExpr)>(resolved.Count);
+        foreach (var clause in resolved)
+        {
+            if (clause.ResourceKind is not null)
+            {
+                expanded.Add((clause.ResourceKind, clause.ActionNames, clause.Effect, clause.Condition));
+                continue;
+            }
+
+            if (knownKinds.Count == 0)
+            {
+                throw new CedarLoweringException(
+                    "Cannot lower a policy whose resource scope doesn't determine a concrete resource kind (no " +
+                    "'is'/'==', or a bare 'resource'/'resource in ...') -- no other policy in this batch " +
+                    "establishes a concrete resource kind either. Configure CedarLoadOptions.DefaultResourceKind.");
+            }
+
+            foreach (var kind in knownKinds)
+            {
+                expanded.Add((kind, clause.ActionNames, clause.Effect, clause.Condition));
+            }
+        }
+
+        return expanded;
+    }
+
+    /// <summary>
+    /// Pass 2: the union of every concrete action name any policy in this
     /// batch names for a given resource kind -- what an <c>action</c>-unconstrained
     /// policy for that same resource kind expands against.
     /// </summary>
-    private static Dictionary<string, HashSet<string>> BuildActionVocabulary(IReadOnlyList<ResolvedClause> resolved)
+    private static Dictionary<string, HashSet<string>> BuildActionVocabulary(
+        IReadOnlyList<(string ResourceKind, IReadOnlyList<string>? ActionNames, CedarEffect Effect, CedarExpr Condition)> resolved)
     {
         var vocabularyByKind = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
         foreach (var clause in resolved)
@@ -85,14 +135,15 @@ internal static class CedarPolicySetLowerer
     }
 
     /// <summary>
-    /// Pass 2: resolves every <c>ActionNames is null</c> clause (an
-    /// <c>action</c>-unconstrained policy) against pass 1's vocabulary for
+    /// Pass 3: resolves every <c>ActionNames is null</c> clause (an
+    /// <c>action</c>-unconstrained policy) against pass 2's vocabulary for
     /// its resource kind, then flattens every clause -- expanded or
     /// already-concrete -- into one <c>(resourceKind, actionName)</c> tuple
     /// per action it applies to.
     /// </summary>
     private static List<(string ResourceKind, string ActionName, CedarEffect Effect, CedarExpr Condition)> ExpandActionScopes(
-        IReadOnlyList<ResolvedClause> resolved, Dictionary<string, HashSet<string>> vocabularyByKind)
+        IReadOnlyList<(string ResourceKind, IReadOnlyList<string>? ActionNames, CedarEffect Effect, CedarExpr Condition)> resolved,
+        Dictionary<string, HashSet<string>> vocabularyByKind)
     {
         var flattened = new List<(string, string, CedarEffect, CedarExpr)>();
         foreach (var clause in resolved)
@@ -180,21 +231,16 @@ internal static class CedarPolicySetLowerer
 
     // -- resource scope -----------------------------------------------------
 
-    private static (string Kind, CedarExpr? Condition) ResolveResourceScope(CedarScopeConstraint scope, CedarLoadOptions options) =>
+    private static (string? Kind, CedarExpr? Condition) ResolveResourceScope(CedarScopeConstraint scope, CedarLoadOptions options) =>
         scope switch
         {
-            CedarAnyScope => (RequireDefaultResourceKind(options), null),
+            CedarAnyScope => (options.DefaultResourceKind, null),
             CedarEqScope eq => (LastSegment(eq.Entity.Type), Equal(ResourceIdAttr(), StringLiteral(eq.Entity.Id))),
             CedarIsScope isScope => (LastSegment(isScope.Type), null),
             CedarIsInScope isIn => (LastSegment(isIn.Type), InOp(ResourceVar(), EntityRefExpr(isIn.Entity))),
-            CedarInScope inScope => (RequireDefaultResourceKind(options), InOp(ResourceVar(), EntityRefExpr(inScope.Entity))),
+            CedarInScope inScope => (options.DefaultResourceKind, InOp(ResourceVar(), EntityRefExpr(inScope.Entity))),
             _ => throw new CedarLoweringException($"Unsupported resource scope constraint '{scope.GetType().Name}'"),
         };
-
-    private static string RequireDefaultResourceKind(CedarLoadOptions options) => options.DefaultResourceKind
-        ?? throw new CedarLoweringException(
-            "Cannot lower a policy whose resource scope doesn't determine a concrete resource kind (no 'is'/'==', " +
-            "or a bare 'resource in ...') -- configure CedarLoadOptions.DefaultResourceKind.");
 
     // -- principal scope ------------------------------------------------
 
@@ -232,18 +278,30 @@ internal static class CedarPolicySetLowerer
     // -- action scope -------------------------------------------------------
 
     /// <summary><c>null</c> means <c>CedarAnyScope</c> -- resolved later, against the batch's action vocabulary for this resource kind.</summary>
-    private static IReadOnlyList<string>? ResolveActionScope(CedarScopeConstraint scope) => scope switch
+    private static IReadOnlyList<string>? ResolveActionScope(CedarScopeConstraint scope, CedarLoadOptions options) => scope switch
     {
         CedarAnyScope => null,
         CedarEqScope eq => [eq.Entity.Id],
-        // No action-group expansion (no schema input in this milestone) --
-        // treated the same as CedarEqScope with that one action, a
-        // deliberate, documented simplification (see CedarLoadOptions'
-        // doc comment and the plan this was built from).
-        CedarInScope inScope => [inScope.Entity.Id],
+        CedarInScope inScope => ExpandActionGroup(inScope.Entity, options),
         CedarInSetScope inSet => [.. inSet.Entities.Select(e => e.Id)],
         _ => throw new CedarLoweringException($"Unsupported action scope constraint '{scope.GetType().Name}'"),
     };
+
+    /// <summary>
+    /// <c>action in Action::"group"</c> expands to every action reachable
+    /// as a descendant of the group entity in
+    /// <see cref="CedarLoadOptions.ActionGroups"/>, plus the group entity's
+    /// own id -- matching Cedar's own <c>X in Y</c> semantics, where
+    /// <c>X == Y</c> counts. An unconfigured <see cref="CedarLoadOptions.ActionGroups"/>
+    /// (or a group name with no recorded descendants) naturally reduces to
+    /// just <c>[entity.Id]</c>, identical to <c>action == Action::"X"</c>.
+    /// </summary>
+    private static IReadOnlyList<string> ExpandActionGroup(EntityRef entity, CedarLoadOptions options)
+    {
+        var ancestor = new EntityUid(LastSegment(entity.Type), entity.Id);
+        var graph = options.ActionGroups ?? RelationshipGraph.Empty;
+        return [entity.Id, .. graph.Descendants(ancestor).Select(e => e.Id)];
+    }
 
     // -- when/unless ----------------------------------------------------
 
