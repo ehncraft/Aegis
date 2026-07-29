@@ -16,18 +16,21 @@ public sealed class AegisEngine : IDisposable
     private readonly IReadOnlyList<IAttributeProvider> _attributeProviders;
     private readonly IDecisionCacheBackend? _cache;
     private readonly IAuditLogStore? _auditLogStore;
+    private readonly string _principalEntityType;
 
     private AegisEngine(
         IReadOnlyList<ResourcePolicy> policies,
         PolicyEvaluator evaluator,
         IReadOnlyList<IAttributeProvider> attributeProviders,
         IDecisionCacheBackend? cache = null,
-        IAuditLogStore? auditLogStore = null)
+        IAuditLogStore? auditLogStore = null,
+        string principalEntityType = "User")
     {
         _policies = policies;
         _evaluator = evaluator;
         _attributeProviders = attributeProviders;
         _cache = cache;
+        _principalEntityType = principalEntityType;
         _auditLogStore = auditLogStore;
     }
 
@@ -41,7 +44,7 @@ public sealed class AegisEngine : IDisposable
     /// multiple instances behind a load balancer.
     /// </summary>
     public AegisEngine WithDecisionCache(DecisionCacheOptions options) =>
-        new(_policies, _evaluator, _attributeProviders, new MemoryDecisionCache(options), _auditLogStore);
+        new(_policies, _evaluator, _attributeProviders, new MemoryDecisionCache(options), _auditLogStore, _principalEntityType);
 
     /// <summary>
     /// Same as <see cref="WithDecisionCache"/>, but backed by any
@@ -55,7 +58,7 @@ public sealed class AegisEngine : IDisposable
     /// is used.
     /// </summary>
     public AegisEngine WithDistributedDecisionCache(IDistributedCache cache, DecisionCacheOptions options) =>
-        new(_policies, _evaluator, _attributeProviders, new DistributedDecisionCache(cache, options), _auditLogStore);
+        new(_policies, _evaluator, _attributeProviders, new DistributedDecisionCache(cache, options), _auditLogStore, _principalEntityType);
 
     /// <summary>
     /// Returns a new engine, sharing this one's policies, attribute
@@ -71,7 +74,12 @@ public sealed class AegisEngine : IDisposable
         var entityParents = await relationshipProvider.LoadEntityParentsAsync(cancellationToken);
         var graph = new RelationshipGraph(entityParents);
         return new AegisEngine(
-            _policies, new PolicyEvaluator(_policies, graph), _attributeProviders, _cache, _auditLogStore);
+            _policies,
+            new PolicyEvaluator(_policies, graph, _principalEntityType),
+            _attributeProviders,
+            _cache,
+            _auditLogStore,
+            _principalEntityType);
     }
 
     /// <summary>
@@ -87,7 +95,7 @@ public sealed class AegisEngine : IDisposable
     /// oversight.
     /// </summary>
     public AegisEngine WithAuditLog(IAuditLogStore store) =>
-        new(_policies, _evaluator, _attributeProviders, _cache, store);
+        new(_policies, _evaluator, _attributeProviders, _cache, store, _principalEntityType);
 
     public void Dispose() => _cache?.Dispose();
 
@@ -96,20 +104,50 @@ public sealed class AegisEngine : IDisposable
     /// Validates before returning -- see <see cref="PolicyValidator"/> --
     /// so a bad policy fails here, not on the first request that hits it.
     /// </summary>
-    public static AegisEngine Create(string policiesDirectory, params IAttributeProvider[] attributeProviders)
+    public static AegisEngine Create(string policiesDirectory, params IAttributeProvider[] attributeProviders) =>
+        Create(policiesDirectory, principalEntityType: "User", attributeProviders);
+
+    /// <summary>
+    /// Same as <see cref="Create(string, IAttributeProvider[])"/>, with an
+    /// explicit <paramref name="principalEntityType"/> -- see
+    /// <see cref="PolicyEvaluator(IEnumerable{ResourcePolicy}, RelationshipGraph?, string)"/>'s
+    /// parameter of the same name.
+    /// </summary>
+    public static AegisEngine Create(
+        string policiesDirectory, string principalEntityType, params IAttributeProvider[] attributeProviders)
     {
         var policies = YamlPolicyLoader.LoadDirectory(policiesDirectory);
         PolicyValidator.Validate(policies);
-        return new AegisEngine(policies, new PolicyEvaluator(policies), attributeProviders);
+        return new AegisEngine(
+            policies,
+            new PolicyEvaluator(policies, principalEntityType: principalEntityType),
+            attributeProviders,
+            principalEntityType: principalEntityType);
     }
 
     /// <summary>Validates before returning; see <see cref="PolicyValidator"/>.</summary>
     public static AegisEngine FromPolicies(
-        IEnumerable<ResourcePolicy> policies, params IAttributeProvider[] attributeProviders)
+        IEnumerable<ResourcePolicy> policies, params IAttributeProvider[] attributeProviders) =>
+        FromPolicies(policies, principalEntityType: "User", attributeProviders);
+
+    /// <summary>
+    /// Same as <see cref="FromPolicies(IEnumerable{ResourcePolicy}, IAttributeProvider[])"/>,
+    /// with an explicit <paramref name="principalEntityType"/> -- see
+    /// <see cref="PolicyEvaluator(IEnumerable{ResourcePolicy}, RelationshipGraph?, string)"/>'s
+    /// parameter of the same name.
+    /// </summary>
+    public static AegisEngine FromPolicies(
+        IEnumerable<ResourcePolicy> policies,
+        string principalEntityType,
+        params IAttributeProvider[] attributeProviders)
     {
         var policyList = policies as IReadOnlyList<ResourcePolicy> ?? [.. policies];
         PolicyValidator.Validate(policyList);
-        return new AegisEngine(policyList, new PolicyEvaluator(policyList), attributeProviders);
+        return new AegisEngine(
+            policyList,
+            new PolicyEvaluator(policyList, principalEntityType: principalEntityType),
+            attributeProviders,
+            principalEntityType: principalEntityType);
     }
 
     /// <summary>
@@ -120,11 +158,16 @@ public sealed class AegisEngine : IDisposable
     public static async Task<AegisEngine> CreateAsync(
         IPolicyProvider policyProvider,
         IReadOnlyList<IAttributeProvider>? attributeProviders = null,
+        string principalEntityType = "User",
         CancellationToken cancellationToken = default)
     {
         var policies = await policyProvider.LoadPoliciesAsync(cancellationToken);
         PolicyValidator.Validate(policies);
-        return new AegisEngine(policies, new PolicyEvaluator(policies), attributeProviders ?? []);
+        return new AegisEngine(
+            policies,
+            new PolicyEvaluator(policies, principalEntityType: principalEntityType),
+            attributeProviders ?? [],
+            principalEntityType: principalEntityType);
     }
 
     /// <summary>

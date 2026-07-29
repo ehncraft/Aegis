@@ -6,6 +6,7 @@
     <ProjectReference Include="..\Aegis.Policies\Aegis.Policies.csproj" />
     <ProjectReference Include="..\Aegis.Relationships\Aegis.Relationships.csproj" />
     <ProjectReference Include="..\Aegis.Audit\Aegis.Audit.csproj" />
+    <ProjectReference Include="..\Aegis.Cedar\Aegis.Cedar.csproj" />
   </ItemGroup>
 
   <ItemGroup>

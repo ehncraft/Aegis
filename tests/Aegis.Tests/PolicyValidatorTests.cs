@@ -360,4 +360,111 @@ public class PolicyValidatorTests
         Assert.Contains("missing", ex.Errors[0]);
         Assert.Contains("approve", ex.Errors[0]);
     }
+
+    // -- Language = "cedar" -------------------------------------------------
+
+    [Fact]
+    public void Validate_ValidCedarWhenExpression_DoesNotThrow()
+    {
+        var policy = ValidPolicy();
+        policy.Actions["approve"].Allow!.When = "principal.department == resource.department";
+        policy.Actions["approve"].Allow!.Language = "cedar";
+
+        var exception = Record.Exception(() => PolicyValidator.Validate([policy]));
+
+        Assert.Null(exception);
+    }
+
+    [Fact]
+    public void Validate_InvalidCedarSyntax_ThrowsWithResourceAndActionInMessage()
+    {
+        var policy = ValidPolicy();
+        policy.Actions["approve"].Allow!.When = "principal.department ==";
+        policy.Actions["approve"].Allow!.Language = "cedar";
+
+        var ex = Assert.Throws<PolicyValidationException>(() => PolicyValidator.Validate([policy]));
+
+        Assert.Single(ex.Errors);
+        Assert.Contains("invoices", ex.Errors[0]);
+        Assert.Contains("approve", ex.Errors[0]);
+    }
+
+    [Fact]
+    public void Validate_CedarDisallowedExtensionFunction_Throws()
+    {
+        var policy = ValidPolicy();
+        policy.Actions["approve"].Allow!.When = "notARealFunction(\"x\") == \"x\"";
+        policy.Actions["approve"].Allow!.Language = "cedar";
+
+        var ex = Assert.Throws<PolicyValidationException>(() => PolicyValidator.Validate([policy]));
+
+        Assert.Single(ex.Errors);
+        Assert.Contains("notARealFunction", ex.Errors[0]);
+    }
+
+    [Fact]
+    public void Validate_CedarDisallowedMethod_Throws()
+    {
+        var policy = ValidPolicy();
+        policy.Actions["approve"].Allow!.When = "[1, 2].notARealMethod(1)";
+        policy.Actions["approve"].Allow!.Language = "cedar";
+
+        var ex = Assert.Throws<PolicyValidationException>(() => PolicyValidator.Validate([policy]));
+
+        Assert.Single(ex.Errors);
+        Assert.Contains("notARealMethod", ex.Errors[0]);
+    }
+
+    [Fact]
+    public void Validate_InvalidCedarForbidWhenExpression_ThrowsWithResourceAndActionInMessage()
+    {
+        var policy = ValidPolicy();
+        policy.Actions["approve"].Forbid = new ForbidRule { When = "resource.locked ==", Language = "cedar" };
+
+        var ex = Assert.Throws<PolicyValidationException>(() => PolicyValidator.Validate([policy]));
+
+        Assert.Single(ex.Errors);
+        Assert.Contains("invoices", ex.Errors[0]);
+        Assert.Contains("approve", ex.Errors[0]);
+    }
+
+    [Fact]
+    public void Validate_ValidCedarWhenExpression_CoveringEveryNodeKind_DoesNotThrow()
+    {
+        // Exercises CedarExtensionValidation.Walk's has/like/is/in/unary/if/record/set
+        // branches in one pass -- CedarPolicySetLowererTests only ever produces
+        // policies from the narrower driving-scenario subset.
+        var policy = ValidPolicy();
+        policy.Actions["approve"].Allow!.When =
+            """
+            (principal has id) &&
+            ("hello" like "hel*") &&
+            (principal is User in Group::"admins") &&
+            (principal in Group::"admins") &&
+            !false &&
+            ((if true then 1 else 2) == 1) &&
+            ({ x: 1 }.x == 1) &&
+            ([1, 2].contains(1))
+            """;
+        policy.Actions["approve"].Allow!.Language = "cedar";
+
+        var exception = Record.Exception(() => PolicyValidator.Validate([policy]));
+
+        Assert.Null(exception);
+    }
+
+    [Fact]
+    public void Validate_CedarDisallowedMethod_NestedInsideIfExpression_Throws()
+    {
+        // Proves the walker recurses into sub-expressions rather than only
+        // checking the top-level node.
+        var policy = ValidPolicy();
+        policy.Actions["approve"].Allow!.When = "if true then [1, 2].notARealMethod(1) else false";
+        policy.Actions["approve"].Allow!.Language = "cedar";
+
+        var ex = Assert.Throws<PolicyValidationException>(() => PolicyValidator.Validate([policy]));
+
+        Assert.Single(ex.Errors);
+        Assert.Contains("notARealMethod", ex.Errors[0]);
+    }
 }

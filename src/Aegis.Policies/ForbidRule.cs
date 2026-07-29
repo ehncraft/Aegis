@@ -13,4 +13,7 @@ public sealed class ForbidRule
 
     /// <summary>Denies access if this condition expression evaluates to true.</summary>
     public string? When { get; set; }
+
+    /// <summary>Same discriminator as <see cref="AllowRule.Language"/>, see its doc comment.</summary>
+    public string? Language { get; set; }
 }

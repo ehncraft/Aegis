@@ -15,4 +15,10 @@
     </PackageReference>
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Aegis.Core\Aegis.Core.csproj" />
+    <ProjectReference Include="..\Aegis.Relationships\Aegis.Relationships.csproj" />
+    <ProjectReference Include="..\Aegis.Policies\Aegis.Policies.csproj" />
+  </ItemGroup>
+
 </Project>

@@ -506,4 +506,162 @@ public class PolicyEvaluatorTests
         Assert.False(decision.Allowed);
         Assert.Equal("No allow condition was satisfied", decision.Explanation.Reason);
     }
+
+    // -- Language = "cedar" dispatch ---------------------------------------
+
+    private static ResourcePolicy CedarLanguageInvoicePolicy() => new()
+    {
+        Resource = "invoices",
+        Actions = new Dictionary<string, ActionRule>
+        {
+            ["approve"] = new()
+            {
+                Allow = new AllowRule
+                {
+                    When = "principal.department == resource.department",
+                    Language = "cedar",
+                },
+                Forbid = new ForbidRule
+                {
+                    When = "principal.suspended",
+                    Language = "cedar",
+                },
+            },
+        },
+    };
+
+    [Fact]
+    public void CedarLanguageAllowWhen_ConditionTrue_Allows()
+    {
+        var evaluator = new PolicyEvaluator([CedarLanguageInvoicePolicy()]);
+        var principal = AegisPrincipal.Create("alice",
+            attributes: new Dictionary<string, object?> { ["department"] = "finance", ["suspended"] = false });
+        var resource = AegisResource.Create("invoices", "INV-1",
+            attributes: new Dictionary<string, object?> { ["department"] = "finance" });
+
+        var decision = evaluator.Authorize(principal, resource, "approve");
+
+        Assert.True(decision.Allowed);
+    }
+
+    [Fact]
+    public void CedarLanguageAllowWhen_ConditionFalse_Denies()
+    {
+        var evaluator = new PolicyEvaluator([CedarLanguageInvoicePolicy()]);
+        var principal = AegisPrincipal.Create("alice",
+            attributes: new Dictionary<string, object?> { ["department"] = "sales", ["suspended"] = false });
+        var resource = AegisResource.Create("invoices", "INV-1",
+            attributes: new Dictionary<string, object?> { ["department"] = "finance" });
+
+        var decision = evaluator.Authorize(principal, resource, "approve");
+
+        Assert.False(decision.Allowed);
+    }
+
+    [Fact]
+    public void CedarLanguageForbidWhen_Matches_OverridesMatchingAllow()
+    {
+        var evaluator = new PolicyEvaluator([CedarLanguageInvoicePolicy()]);
+        var principal = AegisPrincipal.Create("alice",
+            attributes: new Dictionary<string, object?> { ["department"] = "finance", ["suspended"] = true });
+        var resource = AegisResource.Create("invoices", "INV-1",
+            attributes: new Dictionary<string, object?> { ["department"] = "finance" });
+
+        var decision = evaluator.Authorize(principal, resource, "approve");
+
+        Assert.False(decision.Allowed);
+        Assert.Equal("Denied by forbid rule", decision.Explanation.Reason);
+    }
+
+    [Fact]
+    public void CedarLanguageWhen_RenderedExpressionMatchesSourceText()
+    {
+        // Unlike Aegis-grammar When (which renders via CompiledExpression.Source,
+        // possibly reformatted), a Cedar When's ConditionExplanation should be
+        // the exact source text -- there's no separate "compiled" rendering.
+        var evaluator = new PolicyEvaluator([CedarLanguageInvoicePolicy()]);
+        var principal = AegisPrincipal.Create("alice",
+            attributes: new Dictionary<string, object?> { ["department"] = "finance", ["suspended"] = false });
+        var resource = AegisResource.Create("invoices", "INV-1",
+            attributes: new Dictionary<string, object?> { ["department"] = "finance" });
+
+        var decision = evaluator.Authorize(principal, resource, "approve");
+
+        Assert.Contains(decision.Explanation.Conditions, c => c.Expression == "principal.department == resource.department");
+    }
+
+    // -- principalEntityType constructor parameter -------------------------
+
+    [Fact]
+    public void Constructor_DefaultPrincipalEntityType_IsUser()
+    {
+        var graph = new RelationshipGraph([
+            new EntityParent { Child = new EntityUid("User", "alice"), Parent = new EntityUid("Group", "admins") },
+        ]);
+        var policy = new ResourcePolicy
+        {
+            Resource = "docs",
+            DerivedRoles = new Dictionary<string, DerivedRoleDefinition>
+            {
+                ["admin"] = new() { In = new DerivedRoleHierarchyCheck { Type = "Group", Id = "'admins'" } },
+            },
+            Actions = new Dictionary<string, ActionRule>
+            {
+                ["view"] = new() { Allow = new AllowRule { Roles = ["admin"] } },
+            },
+        };
+        var evaluator = new PolicyEvaluator([policy], graph);
+        var decision = evaluator.Authorize(AegisPrincipal.Create("alice"), AegisResource.Create("docs", "d1"), "view");
+
+        Assert.True(decision.Allowed);
+    }
+
+    [Fact]
+    public void Constructor_ExplicitPrincipalEntityType_UsedForDerivedRoleHierarchyCheck()
+    {
+        var graph = new RelationshipGraph([
+            new EntityParent { Child = new EntityUid("Membership", "alice"), Parent = new EntityUid("Group", "admins") },
+        ]);
+        var policy = new ResourcePolicy
+        {
+            Resource = "docs",
+            DerivedRoles = new Dictionary<string, DerivedRoleDefinition>
+            {
+                ["admin"] = new() { In = new DerivedRoleHierarchyCheck { Type = "Group", Id = "'admins'" } },
+            },
+            Actions = new Dictionary<string, ActionRule>
+            {
+                ["view"] = new() { Allow = new AllowRule { Roles = ["admin"] } },
+            },
+        };
+        var evaluator = new PolicyEvaluator([policy], graph, principalEntityType: "Membership");
+        var decision = evaluator.Authorize(AegisPrincipal.Create("alice"), AegisResource.Create("docs", "d1"), "view");
+
+        Assert.True(decision.Allowed);
+    }
+
+    [Fact]
+    public void Constructor_MismatchedPrincipalEntityType_DerivedRoleHierarchyCheckDenies()
+    {
+        var graph = new RelationshipGraph([
+            new EntityParent { Child = new EntityUid("Membership", "alice"), Parent = new EntityUid("Group", "admins") },
+        ]);
+        var policy = new ResourcePolicy
+        {
+            Resource = "docs",
+            DerivedRoles = new Dictionary<string, DerivedRoleDefinition>
+            {
+                ["admin"] = new() { In = new DerivedRoleHierarchyCheck { Type = "Group", Id = "'admins'" } },
+            },
+            Actions = new Dictionary<string, ActionRule>
+            {
+                ["view"] = new() { Allow = new AllowRule { Roles = ["admin"] } },
+            },
+        };
+        // Still defaults to "User", but the graph tuple is keyed "Membership".
+        var evaluator = new PolicyEvaluator([policy], graph);
+        var decision = evaluator.Authorize(AegisPrincipal.Create("alice"), AegisResource.Create("docs", "d1"), "view");
+
+        Assert.False(decision.Allowed);
+    }
 }

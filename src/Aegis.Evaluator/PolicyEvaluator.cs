@@ -1,3 +1,4 @@
+using Aegis.Cedar;
 using Aegis.Expressions;
 using Aegis.Policies;
 using Aegis.Relationships;
@@ -14,13 +15,31 @@ public sealed class PolicyEvaluator
     private readonly Dictionary<string, ResourcePolicy> _policiesByResource;
     private readonly Dictionary<string, VariableScope> _variableScopesByResource;
     private readonly Dictionary<string, CompiledExpression> _compiledExpressions = new();
+    private readonly Dictionary<string, CedarExpr> _compiledCedarExpressions = new();
     private readonly RelationshipGraph _relationshipGraph;
+    private readonly string _principalEntityType;
 
-    public PolicyEvaluator(IEnumerable<ResourcePolicy> policies, RelationshipGraph? relationshipGraph = null)
+    /// <param name="principalEntityType">
+    /// The entity type name used for the descendant side of every
+    /// <see cref="DerivedRoleDefinition.In"/> hierarchy check -- i.e. a
+    /// principal is treated as <c>{principalEntityType}:{principal.Id}</c>
+    /// when testing <c>in</c> membership against a <see cref="RelationshipGraph"/>.
+    /// Defaults to <c>"User"</c>, unchanged from before this was
+    /// configurable. Must agree with whatever entity type a caller's
+    /// <see cref="IRelationshipProvider"/> registers principals under --
+    /// e.g. a consumer whose principals are <c>Membership</c> entities, not
+    /// <c>User</c>, must pass <c>"Membership"</c> here or every <c>in</c>
+    /// check will silently never match.
+    /// </param>
+    public PolicyEvaluator(
+        IEnumerable<ResourcePolicy> policies,
+        RelationshipGraph? relationshipGraph = null,
+        string principalEntityType = "User")
     {
         var policyList = policies as IReadOnlyList<ResourcePolicy> ?? [.. policies];
         _policiesByResource = policyList.ToDictionary(p => p.Resource, StringComparer.OrdinalIgnoreCase);
         _relationshipGraph = relationshipGraph ?? RelationshipGraph.Empty;
+        _principalEntityType = principalEntityType;
 
         // Built eagerly, not lazily, so a bad variable expression fails at
         // construction (already validated by PolicyValidator by then, but
@@ -71,6 +90,7 @@ public sealed class PolicyEvaluator
         var conditions = new List<ConditionExplanation>();
         var evaluationContext = BuildContext(
             principal, resource, action, actionProperties, context, _variableScopesByResource[policy.Resource]);
+        var cedarContext = BuildCedarContext(principal, resource, action, actionProperties, context);
 
         var allowed = false;
 
@@ -78,14 +98,13 @@ public sealed class PolicyEvaluator
         {
             if (rule.Allow.Roles is { Count: > 0 } allowRoles)
             {
-                allowed |= EvaluateRoles(allowRoles, policy, principal, evaluationContext, conditions, effectPrefix: null);
+                allowed |= EvaluateRoles(allowRoles, policy, principal, evaluationContext, cedarContext, conditions, effectPrefix: null);
             }
 
             if (!string.IsNullOrWhiteSpace(rule.Allow.When))
             {
-                var compiled = GetOrCompile(rule.Allow.When);
-                var whenResult = compiled.EvaluateBoolean(evaluationContext);
-                conditions.Add(new ConditionExplanation { Expression = compiled.Source, Result = whenResult });
+                var whenResult = EvaluateWhen(rule.Allow.When, rule.Allow.Language, evaluationContext, cedarContext, out var renderedExpression);
+                conditions.Add(new ConditionExplanation { Expression = renderedExpression, Result = whenResult });
                 allowed |= whenResult;
             }
         }
@@ -96,14 +115,13 @@ public sealed class PolicyEvaluator
         {
             if (rule.Forbid.Roles is { Count: > 0 } forbidRoles)
             {
-                forbidden |= EvaluateRoles(forbidRoles, policy, principal, evaluationContext, conditions, "forbid");
+                forbidden |= EvaluateRoles(forbidRoles, policy, principal, evaluationContext, cedarContext, conditions, "forbid");
             }
 
             if (!string.IsNullOrWhiteSpace(rule.Forbid.When))
             {
-                var compiled = GetOrCompile(rule.Forbid.When);
-                var whenResult = compiled.EvaluateBoolean(evaluationContext);
-                conditions.Add(new ConditionExplanation { Expression = $"forbid: {compiled.Source}", Result = whenResult });
+                var whenResult = EvaluateWhen(rule.Forbid.When, rule.Forbid.Language, evaluationContext, cedarContext, out var renderedExpression);
+                conditions.Add(new ConditionExplanation { Expression = $"forbid: {renderedExpression}", Result = whenResult });
                 forbidden |= whenResult;
             }
         }
@@ -146,6 +164,7 @@ public sealed class PolicyEvaluator
         ResourcePolicy policy,
         AegisPrincipal principal,
         EvaluationContext context,
+        CedarEvaluationContext cedarContext,
         List<ConditionExplanation> conditions,
         string? effectPrefix)
     {
@@ -168,7 +187,7 @@ public sealed class PolicyEvaluator
 
             if (policy.DerivedRoles.TryGetValue(roleName, out var derivedRole))
             {
-                (result, expression) = EvaluateDerivedRole(roleName, derivedRole, principal, context);
+                (result, expression) = EvaluateDerivedRole(roleName, derivedRole, principal, context, cedarContext);
             }
             else
             {
@@ -188,30 +207,76 @@ public sealed class PolicyEvaluator
 
     /// <summary>
     /// ABAC-style (<see cref="DerivedRoleDefinition.When"/>) evaluates a
-    /// boolean condition, unchanged. ReBAC-style (<see cref="DerivedRoleDefinition.In"/>)
-    /// evaluates its <c>id</c> expression to get the target entity's id,
-    /// then asks the relationship graph whether the principal -- always
-    /// "User:{principal.Id}", matching the tuple format this feature
-    /// standardized on -- is a (transitive) member of that entity's
-    /// hierarchy.
+    /// boolean condition, unchanged (dispatching on <see cref="DerivedRoleDefinition.Language"/>
+    /// the same way <see cref="EvaluateWhen"/> does, for symmetry -- the
+    /// Cedar lowerer doesn't actually emit this shape today, uniformly
+    /// preferring a synthesized <c>When</c> on the owning <c>AllowRule</c>/
+    /// <c>ForbidRule</c> instead, but a hand-built policy could).
+    /// ReBAC-style (<see cref="DerivedRoleDefinition.In"/>) evaluates its
+    /// <c>id</c> expression to get the target entity's id, then asks the
+    /// relationship graph whether the principal -- as
+    /// <c>{_principalEntityType}:{principal.Id}</c>, matching the tuple
+    /// format this feature standardized on -- is a (transitive) member of
+    /// that entity's hierarchy.
     /// </summary>
     private (bool Result, string Expression) EvaluateDerivedRole(
-        string roleName, DerivedRoleDefinition derivedRole, AegisPrincipal principal, EvaluationContext context)
+        string roleName,
+        DerivedRoleDefinition derivedRole,
+        AegisPrincipal principal,
+        EvaluationContext context,
+        CedarEvaluationContext cedarContext)
     {
         if (derivedRole.When is not null)
         {
-            var compiled = GetOrCompile(derivedRole.When);
-            return (compiled.EvaluateBoolean(context), $"derived role '{roleName}': {compiled.Source}");
+            var whenResult = EvaluateWhen(derivedRole.When, derivedRole.Language, context, cedarContext, out var renderedExpression);
+            return (whenResult, $"derived role '{roleName}': {renderedExpression}");
         }
 
         var hierarchyCheck = derivedRole.In!;
         var idExpression = GetOrCompile(hierarchyCheck.Id);
         var id = idExpression.Evaluate(context)?.ToString() ?? string.Empty;
         var ancestor = new EntityUid(hierarchyCheck.Type, id);
-        var descendant = new EntityUid("User", principal.Id);
+        var descendant = new EntityUid(_principalEntityType, principal.Id);
         var result = _relationshipGraph.IsIn(descendant, ancestor);
 
         return (result, $"derived role '{roleName}': {descendant} in {ancestor}");
+    }
+
+    /// <summary>
+    /// Dispatches a rule's <c>When</c> body to the grammar its <c>Language</c>
+    /// discriminator names -- Aegis's own <c>${name}</c> expression grammar
+    /// (default, <see cref="Aegis.Expressions"/>) or Cedar (<see cref="Aegis.Cedar"/>'s
+    /// <see cref="CedarConditionEvaluator"/>), re-parsing and caching Cedar
+    /// text the same way <see cref="GetOrCompile"/> already caches compiled
+    /// Aegis expressions.
+    /// </summary>
+    private bool EvaluateWhen(
+        string when,
+        string? language,
+        EvaluationContext context,
+        CedarEvaluationContext cedarContext,
+        out string renderedExpression)
+    {
+        if (string.Equals(language, "cedar", StringComparison.Ordinal))
+        {
+            renderedExpression = when;
+            return CedarConditionEvaluator.EvaluateBoolean(GetOrParseCedar(when), cedarContext);
+        }
+
+        var compiled = GetOrCompile(when);
+        renderedExpression = compiled.Source;
+        return compiled.EvaluateBoolean(context);
+    }
+
+    private CedarExpr GetOrParseCedar(string source)
+    {
+        if (!_compiledCedarExpressions.TryGetValue(source, out var expr))
+        {
+            expr = CedarParser.ParseCondition(source);
+            _compiledCedarExpressions[source] = expr;
+        }
+
+        return expr;
     }
 
     private VariableScope BuildVariableScope(ResourcePolicy policy)
@@ -283,4 +348,21 @@ public sealed class PolicyEvaluator
 
         return evaluationContext;
     }
+
+    private CedarEvaluationContext BuildCedarContext(
+        AegisPrincipal principal,
+        AegisResource resource,
+        string action,
+        IReadOnlyDictionary<string, object?>? actionProperties,
+        IReadOnlyDictionary<string, object?>? context) =>
+        new()
+        {
+            Principal = principal,
+            Resource = resource,
+            Action = action,
+            ActionProperties = actionProperties,
+            Context = context,
+            RelationshipGraph = _relationshipGraph,
+            PrincipalEntityType = _principalEntityType,
+        };
 }

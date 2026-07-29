@@ -42,6 +42,25 @@ internal sealed class CedarParser
         _tokens = tokens;
     }
 
+    /// <summary>
+    /// Parses a single, standalone Cedar expression -- not a full
+    /// <c>permit</c>/<c>forbid</c> policy -- with nothing after it but
+    /// end-of-input. Used to re-parse the rendered Cedar source text a
+    /// <c>when</c>/<c>unless</c> body round-trips through when stored on
+    /// <c>AllowRule.When</c>/<c>ForbidRule.When</c> (see
+    /// <c>PolicyEvaluator.GetOrCompile</c> and <c>CedarPolicySetLowerer</c>'s
+    /// synthesized conditions), rather than the wrap-in-a-policy trick tests
+    /// use for convenience.
+    /// </summary>
+    public static CedarExpr ParseCondition(string text)
+    {
+        var tokens = new CedarLexer(text).Tokenize();
+        var parser = new CedarParser(tokens);
+        var expr = parser.ParseExpr();
+        parser.Expect(CedarTokenType.Eof, "end of expression");
+        return expr;
+    }
+
     public static IReadOnlyList<CedarPolicy> Parse(string text)
     {
         var tokens = new CedarLexer(text).Tokenize();

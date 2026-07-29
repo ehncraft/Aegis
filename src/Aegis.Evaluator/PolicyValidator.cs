@@ -1,3 +1,4 @@
+using Aegis.Cedar;
 using Aegis.Expressions;
 using Aegis.Policies;
 
@@ -78,8 +79,8 @@ public static class PolicyValidator
                     continue;
                 }
 
-                ValidateActionEffectWhen(policy, source, actionName, "allow", rule.Allow?.When, errors);
-                ValidateActionEffectWhen(policy, source, actionName, "forbid", rule.Forbid?.When, errors);
+                ValidateActionEffectWhen(policy, source, actionName, "allow", rule.Allow?.When, rule.Allow?.Language, errors);
+                ValidateActionEffectWhen(policy, source, actionName, "forbid", rule.Forbid?.When, rule.Forbid?.Language, errors);
             }
         }
 
@@ -92,12 +93,22 @@ public static class PolicyValidator
     /// <summary>
     /// Shared by <c>allow.when</c> and <c>forbid.when</c> -- <paramref name="effectName"/>
     /// is <c>"allow"</c> or <c>"forbid"</c>, used only in error messages.
+    /// <paramref name="language"/> dispatches between Aegis's own grammar
+    /// (default, <c>null</c>) and Cedar (<c>"cedar"</c>) -- see
+    /// <c>AllowRule.Language</c>'s doc comment.
     /// </summary>
     private static void ValidateActionEffectWhen(
-        ResourcePolicy policy, string source, string actionName, string effectName, string? when, List<string> errors)
+        ResourcePolicy policy, string source, string actionName, string effectName, string? when, string? language,
+        List<string> errors)
     {
         if (string.IsNullOrWhiteSpace(when))
         {
+            return;
+        }
+
+        if (string.Equals(language, "cedar", StringComparison.Ordinal))
+        {
+            ValidateCedarActionEffectWhen(policy, source, actionName, effectName, when, errors);
             return;
         }
 
@@ -111,6 +122,30 @@ public static class PolicyValidator
             errors.Add(
                 $"Resource '{policy.Resource}' ({source}), action '{actionName}' '{effectName}': invalid 'when' " +
                 $"expression '{when}' -- {ex.Message}");
+        }
+    }
+
+    private static void ValidateCedarActionEffectWhen(
+        ResourcePolicy policy, string source, string actionName, string effectName, string when, List<string> errors)
+    {
+        CedarExpr expr;
+        try
+        {
+            expr = CedarParser.ParseCondition(when);
+        }
+        catch (CedarSyntaxException ex)
+        {
+            errors.Add(
+                $"Resource '{policy.Resource}' ({source}), action '{actionName}' '{effectName}': invalid Cedar 'when' " +
+                $"expression '{when}' -- {ex.Message}");
+            return;
+        }
+
+        foreach (var problem in CedarExtensionValidation.Validate(expr))
+        {
+            errors.Add(
+                $"Resource '{policy.Resource}' ({source}), action '{actionName}' '{effectName}': Cedar 'when' " +
+                $"expression '{when}' -- {problem}");
         }
     }
 

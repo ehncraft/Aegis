@@ -68,4 +68,59 @@ public class AegisEngineRelationshipsTests
         Assert.True(first.Allowed);
         Assert.True(second.Allowed);
     }
+
+    [Fact]
+    public async Task WithRelationshipsAsync_NonUserPrincipalEntityType_AllowsWhenGraphHasMatchAsync()
+    {
+        var provider = new InMemoryRelationshipProvider([
+            new EntityParent { Child = new EntityUid("Membership", "alice"), Parent = new EntityUid("Group", "audit-committee") },
+        ]);
+        using var engine = await AegisEngine.FromPolicies([CommitteePolicy()], principalEntityType: "Membership")
+            .WithRelationshipsAsync(provider);
+        var principal = AegisPrincipal.Create("alice");
+        var resource = AegisResource.Create("loans", "LOAN-1");
+
+        var decision = await engine.AuthorizeAsync(principal, resource, "review");
+
+        Assert.True(decision.Allowed);
+    }
+
+    [Fact]
+    public async Task WithRelationshipsAsync_MismatchedPrincipalEntityType_DeniesAsync()
+    {
+        // Graph tuple is keyed "Membership", but the engine still defaults to "User" --
+        // proves the two must agree, not just that some type happens to work.
+        var provider = new InMemoryRelationshipProvider([
+            new EntityParent { Child = new EntityUid("Membership", "alice"), Parent = new EntityUid("Group", "audit-committee") },
+        ]);
+        using var engine = await AegisEngine.FromPolicies([CommitteePolicy()]).WithRelationshipsAsync(provider);
+        var principal = AegisPrincipal.Create("alice");
+        var resource = AegisResource.Create("loans", "LOAN-1");
+
+        var decision = await engine.AuthorizeAsync(principal, resource, "review");
+
+        Assert.False(decision.Allowed);
+    }
+
+    [Fact]
+    public async Task WithDecisionCache_PreservesPrincipalEntityTypeAsync()
+    {
+        // WithDecisionCache/WithDistributedDecisionCache/WithAuditLog must
+        // thread _principalEntityType through their `new(...)` calls too --
+        // not just WithRelationshipsAsync -- or this regresses silently back
+        // to "User" the moment caching is layered on before relationships.
+        var provider = new InMemoryRelationshipProvider([
+            new EntityParent { Child = new EntityUid("Membership", "alice"), Parent = new EntityUid("Group", "audit-committee") },
+        ]);
+        using var engine = await AegisEngine
+            .FromPolicies([CommitteePolicy()], principalEntityType: "Membership")
+            .WithDecisionCache(new DecisionCacheOptions { Duration = TimeSpan.FromMinutes(1) })
+            .WithRelationshipsAsync(provider);
+        var principal = AegisPrincipal.Create("alice");
+        var resource = AegisResource.Create("loans", "LOAN-1");
+
+        var decision = await engine.AuthorizeAsync(principal, resource, "review");
+
+        Assert.True(decision.Allowed);
+    }
 }

@@ -42,6 +42,7 @@
 
   <ItemGroup>
     <None Include="Fixtures\**\*.yaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Fixtures\**\*.cedar" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
