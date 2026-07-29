@@ -27,7 +27,7 @@ jobs:
       # tags the commit, creates the GitHub Release, and bumps the version.
       # Only that merge produces release_created=true, which is what gates
       # the publish job below.
-      - uses: googleapis/release-please-action@v4
+      - uses: googleapis/release-please-action@v5
         id: release
         with:
           config-file: release-please-config.json
@@ -56,7 +56,7 @@ jobs:
           DISPATCH_TAG: ${{ inputs.tag }}
           RELEASE_PLEASE_TAG: ${{ needs.release-please.outputs.tag_name }}
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ steps.tag.outputs.tag_name }}
 
