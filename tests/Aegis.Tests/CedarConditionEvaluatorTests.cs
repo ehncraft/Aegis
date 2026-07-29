@@ -331,4 +331,297 @@ public class CedarConditionEvaluatorTests
     {
         Assert.Throws<CedarConditionEvaluationException>(() => Eval("ip(\"10.0.0.1\").notARealMethod()", Context()));
     }
+
+    [Fact]
+    public void EvaluateBoolean_UnknownDecimalMethod_Throws()
+    {
+        Assert.Throws<CedarConditionEvaluationException>(
+            () => Eval("decimal(\"1.0\").notARealMethod(decimal(\"2.0\"))", Context()));
+    }
+
+    [Fact]
+    public void EvaluateBoolean_MethodCallOnUnsupportedTargetKind_Throws()
+    {
+        Assert.Throws<CedarConditionEvaluationException>(() => Eval("\"hello\".notAMethod()", Context()));
+    }
+
+    // -- bare principal/resource/action/context var evaluation ------------
+
+    [Fact]
+    public void EvaluateBoolean_BareActionVar_EqualsActionEntity()
+    {
+        Assert.True(Eval("action == Action::\"view\"", Context(action: "view")));
+    }
+
+    [Fact]
+    public void EvaluateBoolean_BareContextVar_Throws()
+    {
+        Assert.Throws<CedarConditionEvaluationException>(() => Eval("context == principal", Context()));
+    }
+
+    // -- attribute resolution: roles, resource.kind, action/context properties, unsupported targets --
+
+    [Fact]
+    public void EvaluateBoolean_PrincipalRoles_ResolvesFromPrincipalRoles()
+    {
+        var principal = AegisPrincipal.Create("alice", roles: ["Admin", "Finance"]);
+        Assert.True(Eval("principal.roles.contains(\"Admin\")", Context(principal: principal)));
+    }
+
+    [Fact]
+    public void EvaluateBoolean_ResourceKind_ResolvesToResourceKind()
+    {
+        Assert.True(Eval("resource.kind == \"document\"", Context()));
+    }
+
+    [Fact]
+    public void EvaluateBoolean_ResourceUnknownAttribute_Throws()
+    {
+        Assert.Throws<CedarConditionEvaluationException>(() => Eval("resource.doesNotExist == \"x\"", Context()));
+    }
+
+    [Fact]
+    public void EvaluateBoolean_ActionProperty_ResolvesFromActionProperties()
+    {
+        var context = Context(actionProperties: new Dictionary<string, object?> { ["urgency"] = "high" });
+        Assert.True(Eval("action.urgency == \"high\"", context));
+    }
+
+    [Fact]
+    public void EvaluateBoolean_ActionUnknownProperty_HasReturnsFalse()
+    {
+        Assert.False(Eval("action has doesNotExist", Context()));
+    }
+
+    [Fact]
+    public void EvaluateBoolean_ContextMissingDictionary_HasReturnsFalse()
+    {
+        Assert.False(Eval("context has anything", Context(context: null)));
+    }
+
+    [Fact]
+    public void EvaluateBoolean_AttributeAccessOnNonRecordNonScopeTarget_Throws()
+    {
+        Assert.Throws<CedarConditionEvaluationException>(() => Eval("(1).foo == 1", Context()));
+    }
+
+    // -- FromClr boxing: int, decimal, EntityUid, nested record/set, unsupported type --
+
+    [Fact]
+    public void EvaluateBoolean_IntAttribute_BoxesAsLong()
+    {
+        var principal = AegisPrincipal.Create("alice", attributes: new Dictionary<string, object?> { ["count"] = 5 });
+        Assert.True(Eval("principal.count == 5", Context(principal: principal)));
+    }
+
+    [Fact]
+    public void EvaluateBoolean_DecimalAttribute_BoxesAsDecimal()
+    {
+        var principal = AegisPrincipal.Create(
+            "alice", attributes: new Dictionary<string, object?> { ["balance"] = 100.5m });
+        Assert.True(Eval("principal.balance.greaterThan(decimal(\"50\"))", Context(principal: principal)));
+    }
+
+    [Fact]
+    public void EvaluateBoolean_EntityUidAttribute_BoxesAsEntity()
+    {
+        var principal = AegisPrincipal.Create(
+            "alice", attributes: new Dictionary<string, object?> { ["manager"] = new EntityUid("User", "bob") });
+        Assert.True(Eval("principal.manager == User::\"bob\"", Context(principal: principal)));
+    }
+
+    [Fact]
+    public void EvaluateBoolean_NestedRecordAttribute_ResolvesNestedField()
+    {
+        var address = new Dictionary<string, object?> { ["city"] = "Nairobi" };
+        var principal = AegisPrincipal.Create("alice", attributes: new Dictionary<string, object?> { ["address"] = address });
+        Assert.True(Eval("principal.address.city == \"Nairobi\"", Context(principal: principal)));
+    }
+
+    [Fact]
+    public void EvaluateBoolean_NestedListAttribute_ResolvesAsSet()
+    {
+        var scores = new List<object?> { 1L, 2L, 3L };
+        var principal = AegisPrincipal.Create("alice", attributes: new Dictionary<string, object?> { ["scores"] = scores });
+        Assert.True(Eval("principal.scores.contains(2)", Context(principal: principal)));
+    }
+
+    [Fact]
+    public void EvaluateBoolean_NullAttribute_Throws()
+    {
+        var principal = AegisPrincipal.Create("alice", attributes: new Dictionary<string, object?> { ["foo"] = null });
+        Assert.Throws<CedarConditionEvaluationException>(() => Eval("principal.foo == 1", Context(principal: principal)));
+    }
+
+    [Fact]
+    public void EvaluateBoolean_UnsupportedAttributeType_Throws()
+    {
+        var principal = AegisPrincipal.Create(
+            "alice", attributes: new Dictionary<string, object?> { ["occurredAt"] = DateTime.UtcNow });
+        Assert.Throws<CedarConditionEvaluationException>(() => Eval("principal.occurredAt == 1", Context(principal: principal)));
+    }
+
+    // -- like: non-string target, trailing wildcards -----------------------
+
+    [Fact]
+    public void EvaluateBoolean_Like_NonStringTarget_Throws()
+    {
+        Assert.Throws<CedarConditionEvaluationException>(() => Eval("1 like \"a*\"", Context()));
+    }
+
+    [Fact]
+    public void EvaluateBoolean_Like_TrailingUnconsumedWildcards_StillMatches()
+    {
+        Assert.True(Eval("\"ab\" like \"ab**\"", Context()));
+    }
+
+    [Fact]
+    public void EvaluateBoolean_Like_EmptyTextAgainstWildcard_Matches()
+    {
+        Assert.True(Eval("\"\" like \"*\"", Context()));
+    }
+
+    // -- is/in: type mismatches on non-entity operands ---------------------
+
+    [Fact]
+    public void EvaluateBoolean_Is_NonEntityTarget_Throws()
+    {
+        Assert.Throws<CedarConditionEvaluationException>(() => Eval("1 is User", Context()));
+    }
+
+    [Fact]
+    public void EvaluateBoolean_IsIn_NonEntityAncestor_Throws()
+    {
+        Assert.Throws<CedarConditionEvaluationException>(() => Eval("principal is User in 1", Context()));
+    }
+
+    [Fact]
+    public void EvaluateBoolean_In_NonEntityOperand_Throws()
+    {
+        Assert.Throws<CedarConditionEvaluationException>(() => Eval("1 in Group::\"admins\"", Context()));
+    }
+
+    // -- ip: isIpv6, isMulticast (IPv4 and IPv6), invalid formats -----------
+
+    [Fact]
+    public void EvaluateBoolean_IpIsIpv6_TrueForIpv6Address()
+    {
+        Assert.True(Eval("ip(\"::1\").isIpv6()", Context()));
+    }
+
+    [Fact]
+    public void EvaluateBoolean_IpIsMulticast_TrueForIpv4MulticastAddress()
+    {
+        Assert.True(Eval("ip(\"224.0.0.1\").isMulticast()", Context()));
+    }
+
+    [Fact]
+    public void EvaluateBoolean_IpIsMulticast_TrueForIpv6MulticastAddress()
+    {
+        Assert.True(Eval("ip(\"ff02::1\").isMulticast()", Context()));
+    }
+
+    [Fact]
+    public void EvaluateBoolean_IpIsMulticast_FalseForUnicastAddress()
+    {
+        Assert.False(Eval("ip(\"10.0.0.1\").isMulticast()", Context()));
+    }
+
+    [Fact]
+    public void EvaluateBoolean_IpInvalidAddress_Throws()
+    {
+        Assert.Throws<CedarConditionEvaluationException>(() => Eval("ip(\"not-an-ip\").isIpv4()", Context()));
+    }
+
+    [Fact]
+    public void EvaluateBoolean_IpInvalidNetwork_Throws()
+    {
+        Assert.Throws<CedarConditionEvaluationException>(() => Eval("ip(\"not-an-ip/24\").isIpv4()", Context()));
+    }
+
+    [Fact]
+    public void EvaluateBoolean_ExtensionCallNonStringArgument_Throws()
+    {
+        Assert.Throws<CedarConditionEvaluationException>(() => Eval("ip(1).isIpv4()", Context()));
+    }
+
+    // -- decimal: lessThanOrEqual, greaterThan ------------------------------
+
+    [Fact]
+    public void EvaluateBoolean_DecimalLessThanOrEqual_TrueWhenEqual()
+    {
+        Assert.True(Eval("decimal(\"1.5\").lessThanOrEqual(decimal(\"1.5\"))", Context()));
+    }
+
+    [Fact]
+    public void EvaluateBoolean_DecimalGreaterThan_TrueWhenGreater()
+    {
+        Assert.True(Eval("decimal(\"2.0\").greaterThan(decimal(\"1.5\"))", Context()));
+    }
+
+    // -- CedarValue.ValueEquals: every kind, plus cross-kind and mismatches --
+
+    [Fact]
+    public void EvaluateBoolean_BoolEquality_MatchesExpected()
+    {
+        Assert.True(Eval("true == true", Context()));
+        Assert.False(Eval("true == false", Context()));
+    }
+
+    [Fact]
+    public void EvaluateBoolean_EntityEquality_MatchesExpected()
+    {
+        Assert.True(Eval("User::\"alice\" == User::\"alice\"", Context()));
+        Assert.False(Eval("User::\"alice\" == User::\"bob\"", Context()));
+    }
+
+    [Fact]
+    public void EvaluateBoolean_DecimalEquality_MatchesExpected()
+    {
+        Assert.True(Eval("decimal(\"1.5\") == decimal(\"1.5\")", Context()));
+        Assert.False(Eval("decimal(\"1.5\") == decimal(\"2.0\")", Context()));
+    }
+
+    [Fact]
+    public void EvaluateBoolean_IpEquality_MatchesExpected()
+    {
+        Assert.True(Eval("ip(\"10.0.0.1\") == ip(\"10.0.0.1\")", Context()));
+        Assert.False(Eval("ip(\"10.0.0.1\") == ip(\"10.0.0.2\")", Context()));
+    }
+
+    [Fact]
+    public void EvaluateBoolean_CrossKindEquality_ReturnsFalseNotError()
+    {
+        Assert.False(Eval("1 == \"1\"", Context()));
+    }
+
+    [Fact]
+    public void EvaluateBoolean_SetEquality_OrderIndependent()
+    {
+        Assert.True(Eval("[1, 2] == [2, 1]", Context()));
+    }
+
+    [Fact]
+    public void EvaluateBoolean_SetEquality_DifferentCount_False()
+    {
+        Assert.False(Eval("[1, 2] == [1, 2, 3]", Context()));
+    }
+
+    [Fact]
+    public void EvaluateBoolean_SetEquality_SameCountDifferentElements_False()
+    {
+        Assert.False(Eval("[1, 2] == [1, 3]", Context()));
+    }
+
+    [Fact]
+    public void EvaluateBoolean_RecordEquality_DifferentFieldCount_False()
+    {
+        Assert.False(Eval("{ x: 1 } == { x: 1, y: 2 }", Context()));
+    }
+
+    [Fact]
+    public void EvaluateBoolean_RecordEquality_SameKeysDifferentValues_False()
+    {
+        Assert.False(Eval("{ x: 1, y: 2 } == { x: 1, y: 3 }", Context()));
+    }
 }
