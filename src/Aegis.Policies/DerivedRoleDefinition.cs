@@ -16,6 +16,9 @@ public sealed class DerivedRoleDefinition
     /// directly or transitively.
     /// </summary>
     public DerivedRoleHierarchyCheck? In { get; set; }
+
+    /// <summary>Same discriminator as <see cref="AllowRule.Language"/>, see its doc comment.</summary>
+    public string? Language { get; set; }
 }
 
 /// <summary>

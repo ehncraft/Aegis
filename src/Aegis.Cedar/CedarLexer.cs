@@ -6,6 +6,16 @@ namespace Aegis.Cedar;
 /// <summary>Turns Cedar policy-file source into a flat token stream.</summary>
 internal sealed class CedarLexer
 {
+    /// <summary>
+    /// What a `\*` string escape decodes to -- a Private Use Area codepoint
+    /// no real Cedar source text can otherwise produce, so
+    /// <c>CedarConditionEvaluator</c>'s `like` pattern matcher can tell an
+    /// escaped literal star apart from a bare, wildcard `*` after string
+    /// decoding has already collapsed everything else. See the `case '*'`
+    /// branch of <see cref="ReadEscape"/>.
+    /// </summary>
+    internal const char LiteralStarMarker = '';
+
     private static readonly Dictionary<string, CedarTokenType> Keywords = new(StringComparer.Ordinal)
     {
         ["permit"] = CedarTokenType.Permit,
@@ -303,6 +313,21 @@ internal sealed class CedarLexer
                 return c;
             case 'u':
                 return ReadUnicodeEscape(stringStart);
+            case '*':
+                // Cedar's `like` operator gives `\*` inside a pattern string
+                // a distinct meaning from a bare `*` -- literal asterisk vs.
+                // wildcard (see CedarLikeExpr's doc comment). A plain string
+                // literal has no such ambiguity (an unescaped `*` is already
+                // just a literal star there), so this escape is only
+                // meaningful to a `like` pattern -- but it's lexed via the
+                // same general string-literal path as any other string, so
+                // decoding it here to LiteralStarMarker (a Private Use Area
+                // sentinel no real Cedar source can produce) is what lets
+                // CedarConditionEvaluator's `like` matcher tell "escaped
+                // literal star" apart from "wildcard star" downstream,
+                // without the lexer needing two different string-reading
+                // code paths.
+                return LiteralStarMarker;
             default:
                 throw new CedarSyntaxException($"Unsupported escape sequence '\\{c}'", stringStart);
         }
