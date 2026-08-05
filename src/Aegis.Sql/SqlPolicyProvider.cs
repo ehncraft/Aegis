@@ -6,49 +6,46 @@ using YamlDotNet.Serialization.NamingConventions;
 namespace Aegis.Sql;
 
 /// <summary>
-/// <see cref="IPolicyProvider"/> backed by an existing SQL Server table, per
-/// <see cref="SqlPolicyStoreOptions"/>. Each row's policy body is parsed as
-/// YAML with the same rules <c>YamlPolicyLoader</c> applies to files.
+/// Constructs an <see cref="IPolicyProvider"/> backed by an existing SQL Server table, per
+/// <see cref="SqlPolicyStoreOptions"/> -- the implementation itself is internal; callers only
+/// ever see it through the interface.
 /// </summary>
-public sealed class SqlPolicyProvider : IPolicyProvider
+public static class SqlPolicyProvider
+{
+    public static IPolicyProvider Create(SqlPolicyStoreOptions options) =>
+        new SqlPolicyProviderImpl(options, SqlServerQueryExecutor.Create(options.ConnectionString));
+
+    public static IPolicyProvider Create(SqlPolicyStoreOptions options, ISqlQueryExecutor executor) =>
+        new SqlPolicyProviderImpl(options, executor);
+}
+
+/// <summary>Each row's policy body is parsed as YAML with the same rules
+/// <c>YamlPolicyLoader</c> applies to files.</summary>
+internal sealed class SqlPolicyProviderImpl(SqlPolicyStoreOptions options, ISqlQueryExecutor executor) : IPolicyProvider
 {
     private static readonly IDeserializer Deserializer = new DeserializerBuilder()
         .WithNamingConvention(CamelCaseNamingConvention.Instance)
         .IgnoreUnmatchedProperties()
         .Build();
 
-    private readonly SqlPolicyStoreOptions _options;
-    private readonly ISqlQueryExecutor _executor;
-
-    public SqlPolicyProvider(SqlPolicyStoreOptions options)
-        : this(options, new SqlServerQueryExecutor(options.ConnectionString))
-    {
-    }
-
-    public SqlPolicyProvider(SqlPolicyStoreOptions options, ISqlQueryExecutor executor)
-    {
-        _options = options;
-        _executor = executor;
-    }
-
     public async Task<IReadOnlyList<ResourcePolicy>> LoadPoliciesAsync(CancellationToken cancellationToken = default)
     {
-        var source = $"sql:{_options.Table}";
+        var source = $"sql:{options.Table}";
         IReadOnlyList<IReadOnlyDictionary<string, object?>> rows;
         try
         {
             var sql =
-                $"SELECT {SqlIdentifier.Quote(_options.ResourceNameColumn)}, {SqlIdentifier.Quote(_options.PolicyYamlColumn)} " +
-                $"FROM {SqlIdentifier.Quote(_options.Table)}";
+                $"SELECT {SqlIdentifier.Quote(options.ResourceNameColumn)}, {SqlIdentifier.Quote(options.PolicyYamlColumn)} " +
+                $"FROM {SqlIdentifier.Quote(options.Table)}";
             var parameters = new Dictionary<string, object?>();
 
-            if (_options.TenantId is not null)
+            if (options.TenantId is not null)
             {
-                sql += $" WHERE {SqlIdentifier.Quote(_options.TenantIdColumn)} = @tenantId";
-                parameters["@tenantId"] = _options.TenantId;
+                sql += $" WHERE {SqlIdentifier.Quote(options.TenantIdColumn)} = @tenantId";
+                parameters["@tenantId"] = options.TenantId;
             }
 
-            rows = await _executor.QueryAsync(sql, parameters, cancellationToken);
+            rows = await executor.QueryAsync(sql, parameters, cancellationToken);
         }
         catch (Exception ex)
         {
@@ -58,13 +55,13 @@ public sealed class SqlPolicyProvider : IPolicyProvider
         var policies = new List<ResourcePolicy>(rows.Count);
         foreach (var row in rows)
         {
-            var resourceName = row.GetValueOrDefault(_options.ResourceNameColumn) as string ?? "(unknown)";
+            var resourceName = row.GetValueOrDefault(options.ResourceNameColumn) as string ?? "(unknown)";
             var rowSource = $"{source}/{resourceName}";
 
-            if (row.GetValueOrDefault(_options.PolicyYamlColumn) is not string yaml)
+            if (row.GetValueOrDefault(options.PolicyYamlColumn) is not string yaml)
             {
                 throw new PolicyLoadException(
-                    rowSource, new InvalidOperationException($"Column '{_options.PolicyYamlColumn}' was null or not text"));
+                    rowSource, new InvalidOperationException($"Column '{options.PolicyYamlColumn}' was null or not text"));
             }
 
             try

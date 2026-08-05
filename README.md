@@ -176,7 +176,7 @@ For a persisted, queryable audit trail (`Aegis.Audit`):
 
 ```csharp
 var engine = AegisEngine.Create("Policies")
-    .WithAuditLog(new SqlAuditLogStore(new SqlAuditLogStoreOptions { ConnectionString = "..." }));
+    .WithAuditLog(SqlAuditLogStore.Create(new SqlAuditLogStoreOptions { ConnectionString = "..." }));
 
 // ... AuthorizeAsync calls happen as normal, each one recorded ...
 

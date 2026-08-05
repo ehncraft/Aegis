@@ -48,7 +48,7 @@ public class SqlServerAttributeProviderTests
         var executor = new FakeSqlQueryExecutor(
             [new Dictionary<string, object?> { ["DepartmentName"] = "finance", ["BranchCode"] = "nairobi-cbd" }],
             [new Dictionary<string, object?> { ["RoleName"] = "LoanOfficer" }]);
-        var provider = new SqlServerAttributeProvider(OptionsWithRoles(), executor);
+        var provider = SqlServerAttributeProvider.Create(OptionsWithRoles(), executor);
 
         var result = await provider.GetPrincipalAttributesAsync("officer-1");
 
@@ -61,7 +61,7 @@ public class SqlServerAttributeProviderTests
     public async Task GetPrincipalAttributesAsync_PassesIdAsParameterNotConcatenatedAsync()
     {
         var executor = new FakeSqlQueryExecutor([]);
-        var provider = new SqlServerAttributeProvider(OptionsWithRoles(), executor);
+        var provider = SqlServerAttributeProvider.Create(OptionsWithRoles(), executor);
 
         await provider.GetPrincipalAttributesAsync("officer-1; DROP TABLE Users;--");
 
@@ -78,7 +78,7 @@ public class SqlServerAttributeProviderTests
     public async Task GetPrincipalAttributesAsync_NoMatchingRow_ReturnsEmptyAttributesAsync()
     {
         var executor = new FakeSqlQueryExecutor([], []);
-        var provider = new SqlServerAttributeProvider(OptionsWithRoles(), executor);
+        var provider = SqlServerAttributeProvider.Create(OptionsWithRoles(), executor);
 
         var result = await provider.GetPrincipalAttributesAsync("unknown");
 
@@ -97,7 +97,7 @@ public class SqlServerAttributeProviderTests
         };
         var executor = new FakeSqlQueryExecutor(
             [new Dictionary<string, object?> { ["DepartmentName"] = "finance" }]);
-        var provider = new SqlServerAttributeProvider(options, executor);
+        var provider = SqlServerAttributeProvider.Create(options, executor);
 
         var result = await provider.GetPrincipalAttributesAsync("officer-1");
 
@@ -109,7 +109,7 @@ public class SqlServerAttributeProviderTests
     public async Task GetResourceAttributesAsync_UnmappedResourceKind_ReturnsEmptyWithoutQueryingAsync()
     {
         var executor = new FakeSqlQueryExecutor();
-        var provider = new SqlServerAttributeProvider(OptionsWithRoles(), executor);
+        var provider = SqlServerAttributeProvider.Create(OptionsWithRoles(), executor);
 
         var result = await provider.GetResourceAttributesAsync("loan_applications", "LN-1001");
 
@@ -133,7 +133,7 @@ public class SqlServerAttributeProviderTests
         };
         var executor = new FakeSqlQueryExecutor(
             [new Dictionary<string, object?> { ["PrincipalAmount"] = 250_000, ["ApplicantUserId"] = "member-42" }]);
-        var provider = new SqlServerAttributeProvider(options, executor);
+        var provider = SqlServerAttributeProvider.Create(options, executor);
 
         var result = await provider.GetResourceAttributesAsync("loan_applications", "LN-1001");
 
@@ -148,7 +148,7 @@ public class SqlServerAttributeProviderTests
         options.TenantId = "acme-sacco";
         var executor = new FakeSqlQueryExecutor(
             [new Dictionary<string, object?> { ["DepartmentName"] = "finance" }], [new Dictionary<string, object?>()]);
-        var provider = new SqlServerAttributeProvider(options, executor);
+        var provider = SqlServerAttributeProvider.Create(options, executor);
 
         await provider.GetPrincipalAttributesAsync("officer-1");
 
@@ -165,7 +165,7 @@ public class SqlServerAttributeProviderTests
         options.RoleTenantColumn = "TenantId";
         var executor = new FakeSqlQueryExecutor(
             [new Dictionary<string, object?> { ["DepartmentName"] = "finance" }], [new Dictionary<string, object?>()]);
-        var provider = new SqlServerAttributeProvider(options, executor);
+        var provider = SqlServerAttributeProvider.Create(options, executor);
 
         await provider.GetPrincipalAttributesAsync("officer-1");
 
@@ -192,7 +192,7 @@ public class SqlServerAttributeProviderTests
         };
         var executor = new FakeSqlQueryExecutor(
             [new Dictionary<string, object?> { ["PrincipalAmount"] = 250_000 }]);
-        var provider = new SqlServerAttributeProvider(options, executor);
+        var provider = SqlServerAttributeProvider.Create(options, executor);
 
         await provider.GetResourceAttributesAsync("loan_applications", "LN-1001");
 

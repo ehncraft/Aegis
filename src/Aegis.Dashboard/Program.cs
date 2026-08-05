@@ -17,7 +17,7 @@ var auditLogConnectionString = builder.Configuration["Aegis:AuditLog:ConnectionS
 if (!string.IsNullOrWhiteSpace(auditLogConnectionString))
 {
     builder.Services.AddSingleton<IAuditLogStore>(
-        new SqlAuditLogStore(new SqlAuditLogStoreOptions { ConnectionString = auditLogConnectionString }));
+        SqlAuditLogStore.Create(new SqlAuditLogStoreOptions { ConnectionString = auditLogConnectionString }));
     builder.Services.AddSingleton(new AuditLogStatus(IsPersistent: true));
 }
 else

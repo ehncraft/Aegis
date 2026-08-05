@@ -1,26 +1,25 @@
 namespace Aegis.Sql;
 
 /// <summary>
-/// <see cref="IAttributeProvider"/> backed by an existing SQL Server
-/// database, per <see cref="SqlAttributeProviderOptions"/>'s table/column
-/// mapping. Values are always parameterized; table/column names come only
-/// from configuration, never from request input.
+/// Constructs an <see cref="IAttributeProvider"/> backed by an existing SQL Server database,
+/// per <see cref="SqlAttributeProviderOptions"/>'s table/column mapping -- the implementation
+/// itself is internal; callers only ever see it through the interface.
 /// </summary>
-public sealed class SqlServerAttributeProvider : IAttributeProvider
+public static class SqlServerAttributeProvider
 {
-    private readonly SqlAttributeProviderOptions _options;
-    private readonly ISqlQueryExecutor _executor;
+    public static IAttributeProvider Create(SqlAttributeProviderOptions options) =>
+        new SqlServerAttributeProviderImpl(options, SqlServerQueryExecutor.Create(options.ConnectionString));
 
-    public SqlServerAttributeProvider(SqlAttributeProviderOptions options)
-        : this(options, new SqlServerQueryExecutor(options.ConnectionString))
-    {
-    }
+    public static IAttributeProvider Create(SqlAttributeProviderOptions options, ISqlQueryExecutor executor) =>
+        new SqlServerAttributeProviderImpl(options, executor);
+}
 
-    public SqlServerAttributeProvider(SqlAttributeProviderOptions options, ISqlQueryExecutor executor)
-    {
-        _options = options;
-        _executor = executor;
-    }
+/// <summary>Values are always parameterized; table/column names come only from configuration,
+/// never from request input.</summary>
+internal sealed class SqlServerAttributeProviderImpl(SqlAttributeProviderOptions options, ISqlQueryExecutor executor) : IAttributeProvider
+{
+    private readonly SqlAttributeProviderOptions _options = options;
+    private readonly ISqlQueryExecutor _executor = executor;
 
     public async Task<PrincipalAttributes> GetPrincipalAttributesAsync(
         string principalId, CancellationToken cancellationToken = default)

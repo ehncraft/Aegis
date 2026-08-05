@@ -57,7 +57,7 @@ public sealed class SqlAuditLogStoreIntegrationTests : IAsyncLifetime
         var scriptPath = Path.Combine(AppContext.BaseDirectory, "CreateAuditLogTable.sql");
         await ExecuteNonQueryAsync(await File.ReadAllTextAsync(scriptPath));
 
-        var store = new SqlAuditLogStore(Options());
+        var store = SqlAuditLogStore.Create(Options());
         await store.RecordAsync(Entry());
 
         var results = await store.QueryAsync(new AuditLogQuery());
@@ -78,7 +78,7 @@ public sealed class SqlAuditLogStoreIntegrationTests : IAsyncLifetime
         var scriptPath = Path.Combine(AppContext.BaseDirectory, "CreateAuditLogTable.sql");
         await ExecuteNonQueryAsync(await File.ReadAllTextAsync(scriptPath));
 
-        var store = new SqlAuditLogStore(Options());
+        var store = SqlAuditLogStore.Create(Options());
         await store.RecordAsync(Entry(principalId: "alice"));
         await store.RecordAsync(Entry(principalId: "bob"));
 
@@ -102,7 +102,7 @@ public sealed class SqlAuditLogStoreIntegrationTests : IAsyncLifetime
                 ["view"] = new() { Allow = new AllowRule { Roles = ["Finance"] } },
             },
         };
-        var store = new SqlAuditLogStore(Options());
+        var store = SqlAuditLogStore.Create(Options());
         using var engine = AegisEngine.FromPolicies([policy]).WithAuditLog(store);
         var principal = AegisPrincipal.Create("officer-1", roles: ["Finance"]);
         var resource = AegisResource.Create("invoices", "INV-1");
