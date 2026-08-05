@@ -65,7 +65,7 @@ public class SqlPolicyProviderTests
     {
         var executor = new FakeSqlQueryExecutor(
             [new Dictionary<string, object?> { ["ResourceName"] = "invoices", ["PolicyYaml"] = ValidYaml }]);
-        var provider = new SqlPolicyProvider(Options(), executor);
+        var provider = SqlPolicyProvider.Create(Options(), executor);
 
         var policies = await provider.LoadPoliciesAsync();
 
@@ -91,7 +91,7 @@ public class SqlPolicyProviderTests
                 new Dictionary<string, object?> { ["ResourceName"] = "invoices", ["PolicyYaml"] = ValidYaml },
                 new Dictionary<string, object?> { ["ResourceName"] = "loan_applications", ["PolicyYaml"] = secondYaml },
             ]);
-        var provider = new SqlPolicyProvider(Options(), executor);
+        var provider = SqlPolicyProvider.Create(Options(), executor);
 
         var policies = await provider.LoadPoliciesAsync();
 
@@ -104,7 +104,7 @@ public class SqlPolicyProviderTests
     public async Task LoadPoliciesAsync_EmptyTable_ReturnsEmptyListAsync()
     {
         var executor = new FakeSqlQueryExecutor([]);
-        var provider = new SqlPolicyProvider(Options(), executor);
+        var provider = SqlPolicyProvider.Create(Options(), executor);
 
         var policies = await provider.LoadPoliciesAsync();
 
@@ -116,7 +116,7 @@ public class SqlPolicyProviderTests
     {
         var executor = new FakeSqlQueryExecutor(
             [new Dictionary<string, object?> { ["ResourceName"] = "invoices", ["PolicyYaml"] = "not: [valid: yaml" }]);
-        var provider = new SqlPolicyProvider(Options(), executor);
+        var provider = SqlPolicyProvider.Create(Options(), executor);
 
         var ex = await Assert.ThrowsAsync<PolicyLoadException>(() => provider.LoadPoliciesAsync());
         Assert.Equal("sql:AegisPolicies/invoices", ex.PolicySource);
@@ -127,7 +127,7 @@ public class SqlPolicyProviderTests
     {
         var executor = new FakeSqlQueryExecutor(
             [new Dictionary<string, object?> { ["ResourceName"] = "invoices", ["PolicyYaml"] = null }]);
-        var provider = new SqlPolicyProvider(Options(), executor);
+        var provider = SqlPolicyProvider.Create(Options(), executor);
 
         await Assert.ThrowsAsync<PolicyLoadException>(() => provider.LoadPoliciesAsync());
     }
@@ -136,7 +136,7 @@ public class SqlPolicyProviderTests
     public async Task LoadPoliciesAsync_QueryFails_WrapsInPolicyLoadExceptionAsync()
     {
         var executor = new FakeSqlQueryExecutor(new InvalidOperationException("Invalid object name 'AegisPolicies'."));
-        var provider = new SqlPolicyProvider(Options(), executor);
+        var provider = SqlPolicyProvider.Create(Options(), executor);
 
         var ex = await Assert.ThrowsAsync<PolicyLoadException>(() => provider.LoadPoliciesAsync());
         Assert.Equal("sql:AegisPolicies", ex.PolicySource);
@@ -147,7 +147,7 @@ public class SqlPolicyProviderTests
     {
         var executor = new FakeSqlQueryExecutor(
             [new Dictionary<string, object?> { ["ResourceName"] = "invoices", ["PolicyYaml"] = ValidYaml }]);
-        var provider = new SqlPolicyProvider(Options(), executor);
+        var provider = SqlPolicyProvider.Create(Options(), executor);
 
         await provider.LoadPoliciesAsync();
 
@@ -162,7 +162,7 @@ public class SqlPolicyProviderTests
         options.TenantId = "acme-sacco";
         var executor = new FakeSqlQueryExecutor(
             [new Dictionary<string, object?> { ["ResourceName"] = "invoices", ["PolicyYaml"] = ValidYaml }]);
-        var provider = new SqlPolicyProvider(options, executor);
+        var provider = SqlPolicyProvider.Create(options, executor);
 
         await provider.LoadPoliciesAsync();
 
@@ -178,7 +178,7 @@ public class SqlPolicyProviderTests
         options.TenantIdColumn = "SaccoId";
         var executor = new FakeSqlQueryExecutor(
             [new Dictionary<string, object?> { ["ResourceName"] = "invoices", ["PolicyYaml"] = ValidYaml }]);
-        var provider = new SqlPolicyProvider(options, executor);
+        var provider = SqlPolicyProvider.Create(options, executor);
 
         await provider.LoadPoliciesAsync();
 

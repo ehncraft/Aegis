@@ -28,4 +28,24 @@ public class SqlIdentifierTests
     {
         Assert.Throws<ArgumentException>(() => SqlIdentifier.Quote(identifier));
     }
+
+    [Fact]
+    public void Quote_WithSchema_BracketsBothAndJoinsWithDot()
+    {
+        Assert.Equal("[tenant_123].[CedarPolicies]", SqlIdentifier.Quote("tenant_123", "CedarPolicies"));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    public void Quote_NullOrEmptySchema_ReturnsUnqualifiedTable(string? schema)
+    {
+        Assert.Equal("[CedarPolicies]", SqlIdentifier.Quote(schema, "CedarPolicies"));
+    }
+
+    [Fact]
+    public void Quote_UnsafeSchema_ThrowsArgumentException()
+    {
+        Assert.Throws<ArgumentException>(() => SqlIdentifier.Quote("tenant; DROP TABLE Users;--", "CedarPolicies"));
+    }
 }

@@ -28,7 +28,7 @@ public class CedarPolicyProviderTests
     [Fact]
     public async Task LoadPoliciesAsync_MergesPermitAndForbidAcrossFilesAsync()
     {
-        var provider = new CedarPolicyProvider(CedarDirectory);
+        var provider = CedarPolicyProvider.Create(CedarDirectory);
 
         var policies = await provider.LoadPoliciesAsync();
 
@@ -40,7 +40,7 @@ public class CedarPolicyProviderTests
     [Fact]
     public async Task LoadPoliciesAsync_EndToEnd_ForbidOverridesMatchingPermitAsync()
     {
-        var provider = new CedarPolicyProvider(CedarDirectory);
+        var provider = CedarPolicyProvider.Create(CedarDirectory);
         var policies = await provider.LoadPoliciesAsync();
         var engine = AegisEngine.FromPolicies(policies);
 
@@ -84,6 +84,55 @@ public class CedarPolicyProviderTests
             () => CedarPolicyProvider.LoadDirectory(Path.Combine(FixturesPath, "does-not-exist")));
     }
 
+    [Fact]
+    public void LoadFromText_MergesPermitAndForbidAcrossTexts()
+    {
+        var policies = CedarPolicyProvider.LoadFromText(
+            ["permit(principal, action == Action::\"view\", resource is documents);",
+             "forbid(principal, action == Action::\"view\", resource is documents) when { principal.suspended };"],
+            ["row-1", "row-2"]);
+
+        var policy = Assert.Single(policies);
+        var rule = policy.Actions["view"];
+        Assert.NotNull(rule.Allow);
+        Assert.NotNull(rule.Forbid);
+    }
+
+    [Fact]
+    public async Task LoadFromText_EndToEnd_ForbidOverridesMatchingPermitAsync()
+    {
+        var policies = CedarPolicyProvider.LoadFromText(
+            ["permit(principal, action == Action::\"view\", resource is documents);",
+             "forbid(principal, action == Action::\"view\", resource is documents) when { principal.suspended };"],
+            ["row-1", "row-2"]);
+        var engine = AegisEngine.FromPolicies(policies);
+
+        var suspended = AegisPrincipal.Create("alice", attributes: new Dictionary<string, object?> { ["suspended"] = true });
+        var active = AegisPrincipal.Create("bob", attributes: new Dictionary<string, object?> { ["suspended"] = false });
+        var resource = AegisResource.Create("documents", "doc-1");
+
+        var suspendedDecision = await engine.AuthorizeAsync(suspended, resource, "view");
+        var activeDecision = await engine.AuthorizeAsync(active, resource, "view");
+
+        Assert.False(suspendedDecision.Allowed);
+        Assert.True(activeDecision.Allowed);
+    }
+
+    [Fact]
+    public void LoadFromText_SyntaxError_ThrowsPolicyLoadExceptionWithRowSource()
+    {
+        var ex = Assert.Throws<PolicyLoadException>(() =>
+            CedarPolicyProvider.LoadFromText(["not valid cedar at all"], ["row-broken"]));
+
+        Assert.Equal("row-broken", ex.PolicySource);
+        Assert.IsType<CedarSyntaxException>(ex.InnerException);
+    }
+
+    [Fact]
+    public void LoadFromText_MismatchedListLengths_ThrowsArgumentException() =>
+        Assert.Throws<ArgumentException>(() =>
+            CedarPolicyProvider.LoadFromText(["permit(principal, action, resource);"], []));
+
     // -- acceptance test: the whole milestone, wired through the real
     // AegisEngine.CreateAsync(IPolicyProvider) entry point rather than
     // FromPolicies -- if this doesn't pass cleanly, the gap is somewhere
@@ -92,7 +141,7 @@ public class CedarPolicyProviderTests
     [Fact]
     public async Task CreateAsync_DrivingScenario_ApprovesWithinDepartmentAndPermissionAsync()
     {
-        var provider = new CedarPolicyProvider(
+        var provider = CedarPolicyProvider.Create(
             Path.Combine(FixturesPath, "CedarDrivingScenario"),
             new CedarLoadOptions { DefaultResourceKind = "LeaveRequest", PrincipalEntityType = "Membership" });
         var engine = await AegisEngine.CreateAsync(provider, principalEntityType: "Membership");
@@ -111,7 +160,7 @@ public class CedarPolicyProviderTests
     [Fact]
     public async Task CreateAsync_DrivingScenario_SuspendedMembershipDeniedDespiteMatchingPermitAsync()
     {
-        var provider = new CedarPolicyProvider(
+        var provider = CedarPolicyProvider.Create(
             Path.Combine(FixturesPath, "CedarDrivingScenario"),
             new CedarLoadOptions { DefaultResourceKind = "LeaveRequest", PrincipalEntityType = "Membership" });
         var engine = await AegisEngine.CreateAsync(provider, principalEntityType: "Membership");
@@ -130,7 +179,7 @@ public class CedarPolicyProviderTests
     [Fact]
     public async Task CreateAsync_DrivingScenario_SystemAdminReviewsAcrossOrganizationsAsync()
     {
-        var provider = new CedarPolicyProvider(
+        var provider = CedarPolicyProvider.Create(
             Path.Combine(FixturesPath, "CedarDrivingScenario"),
             new CedarLoadOptions { DefaultResourceKind = "LeaveRequest", PrincipalEntityType = "Membership" });
         var engine = await AegisEngine.CreateAsync(provider, principalEntityType: "Membership");

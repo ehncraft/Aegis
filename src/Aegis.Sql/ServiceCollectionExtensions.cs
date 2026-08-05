@@ -22,7 +22,7 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton(options);
         services.AddSingleton<IAttributeProvider>(_ =>
-            new SqlServerAttributeProvider(options, new SqlServerQueryExecutor(options.ConnectionString)));
+            SqlServerAttributeProvider.Create(options, SqlServerQueryExecutor.Create(options.ConnectionString)));
         return services;
     }
 
@@ -35,7 +35,7 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton(options);
         services.AddSingleton<IPolicyProvider>(_ =>
-            new SqlPolicyProvider(options, new SqlServerQueryExecutor(options.ConnectionString)));
+            SqlPolicyProvider.Create(options, SqlServerQueryExecutor.Create(options.ConnectionString)));
         return services;
     }
 }
