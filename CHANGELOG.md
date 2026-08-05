@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.14.0](https://github.com/ehncraft/Aegis/compare/v0.13.1...v0.14.0) (2026-08-05)
+
+
+### ⚠ BREAKING CHANGES
+
+* SqlPolicyProvider, CedarPolicyProvider, CedarSqlPolicyProvider, SqlAuditLogStore, SqlServerAttributeProvider, and SqlServerQueryExecutor can no longer be constructed directly (`new XProvider(...)`) -- use the corresponding static `XProvider.Create(...)` factory instead, which returns the interface type. CedarSqlPolicyStoreOptions.Schema is a required property with no default value.
+
+### Features
+
+* DB-backed Cedar policy provider and encapsulate SQL/Cedar providers ([#114](https://github.com/ehncraft/Aegis/issues/114)) ([0a5fbd1](https://github.com/ehncraft/Aegis/commit/0a5fbd16fb7f4c2dc006e202862b84e2e2e4bb0a))
+
 ## [0.13.1](https://github.com/ehncraft/Aegis/compare/v0.13.0...v0.13.1) (2026-07-29)
 
 
