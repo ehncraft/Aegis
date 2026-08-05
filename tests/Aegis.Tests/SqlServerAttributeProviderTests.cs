@@ -43,6 +43,17 @@ public class SqlServerAttributeProviderTests
     };
 
     [Fact]
+    public void Create_SingleArgOverload_ReturnsAProvider()
+    {
+        var options = OptionsWithRoles();
+        options.ConnectionString = "Server=.;Database=Test;Integrated Security=true;";
+
+        var provider = SqlServerAttributeProvider.Create(options);
+
+        Assert.NotNull(provider);
+    }
+
+    [Fact]
     public async Task GetPrincipalAttributesAsync_MapsConfiguredColumnsAsync()
     {
         var executor = new FakeSqlQueryExecutor(

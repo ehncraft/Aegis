@@ -48,6 +48,17 @@ public class SqlAuditLogStoreTests
     private static SqlAuditLogStoreOptions Options() => new() { Table = "AegisAuditLog" };
 
     [Fact]
+    public void Create_SingleArgOverload_ReturnsAStore()
+    {
+        var options = Options();
+        options.ConnectionString = "Server=.;Database=Test;Integrated Security=true;";
+
+        var store = SqlAuditLogStore.Create(options);
+
+        Assert.NotNull(store);
+    }
+
+    [Fact]
     public async Task RecordAsync_InsertsWithParameterizedValuesAsync()
     {
         var executor = new FakeSqlQueryExecutor();
