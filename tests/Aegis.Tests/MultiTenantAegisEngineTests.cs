@@ -1,6 +1,7 @@
 using System.Security.Claims;
 
 using Aegis.Policies;
+using Aegis.Relationships;
 
 using Xunit;
 
@@ -190,6 +191,55 @@ public class MultiTenantAegisEngineTests
 
         Assert.Equal(2, buildCounts["acme"]);
         Assert.Equal(1, buildCounts["beta"]);
+    }
+
+    [Fact]
+    public async Task GetEngineAsync_ThenWithRelationshipsAsync_AuthorizesAgainstDerivedRoleAsync()
+    {
+        // The scenario GetEngineAsync exists for: a caller needs a per-call relationship graph
+        // (too volatile to bake into the cached per-tenant engine itself) layered on top of the
+        // tenant's own cached base engine, then to authorize against the derived copy -- neither
+        // AuthorizeAsync overload above supports that derivation step.
+        var committeePolicy = new ResourcePolicy
+        {
+            Resource = "loans",
+            DerivedRoles = new Dictionary<string, DerivedRoleDefinition>
+            {
+                ["committeeMember"] = new() { In = new DerivedRoleHierarchyCheck { Type = "Group", Id = "'audit-committee'" } },
+            },
+            Actions = new Dictionary<string, ActionRule>
+            {
+                ["review"] = new() { Allow = new AllowRule { Roles = ["committeeMember"] } },
+            },
+        };
+        var registry = new MultiTenantAegisEngine(_ => AegisEngine.FromPolicies([committeePolicy]));
+        var provider = new InMemoryRelationshipProvider([
+            new EntityParent { Child = new EntityUid("User", "alice"), Parent = new EntityUid("Group", "audit-committee") },
+        ]);
+        var principal = AegisPrincipal.Create("alice");
+        var resource = AegisResource.Create("loans", "LOAN-1");
+
+        var baseEngine = await registry.GetEngineAsync("acme");
+        using var scopedEngine = await baseEngine.WithRelationshipsAsync(provider);
+        var decision = await scopedEngine.AuthorizeAsync(principal, resource, "review");
+
+        Assert.True(decision.Allowed);
+    }
+
+    [Fact]
+    public async Task GetEngineAsync_SameTenantTwice_ReusesCachedBaseEngineAsync()
+    {
+        var buildCount = 0;
+        var registry = new MultiTenantAegisEngine(_ =>
+        {
+            buildCount++;
+            return AegisEngine.FromPolicies([AllowFinancePolicy()]);
+        });
+
+        await registry.GetEngineAsync("acme");
+        await registry.GetEngineAsync("acme");
+
+        Assert.Equal(1, buildCount);
     }
 
     [Fact]
