@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.0](https://github.com/ehncraft/Aegis/compare/v0.14.0...v0.15.0) (2026-08-05)
+
+
+### Features
+
+* expose MultiTenantAegisEngine.GetEngineAsync publicly ([#117](https://github.com/ehncraft/Aegis/issues/117)) ([fac598a](https://github.com/ehncraft/Aegis/commit/fac598a205405fca7259a3e357ad060b5676b75f))
+
 ## [0.14.0](https://github.com/ehncraft/Aegis/compare/v0.13.1...v0.14.0) (2026-08-05)
 
 
