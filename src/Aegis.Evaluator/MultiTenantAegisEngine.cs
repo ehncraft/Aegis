@@ -113,7 +113,17 @@ public sealed class MultiTenantAegisEngine : IAsyncDisposable
         }
     }
 
-    private Task<AegisEngine> GetEngineAsync(string tenantId, CancellationToken cancellationToken)
+    /// <summary>
+    /// Resolves <paramref name="tenantId"/>'s own base engine (building it on first use),
+    /// without authorizing anything -- for callers that need to derive a further-scoped copy
+    /// first, e.g. <see cref="AegisEngine.WithRelationshipsAsync"/> for a relationship graph
+    /// that has to be rebuilt fresh per call (too volatile to bake into the cached per-tenant
+    /// engine itself), before calling <see cref="AegisEngine.AuthorizeAsync(AegisPrincipal, AegisResource, string, CancellationToken)"/>
+    /// on the derived copy. The two <c>AuthorizeAsync</c> overloads above cover the common case
+    /// (no per-call derivation needed) directly; this is for the less common case where they
+    /// don't.
+    /// </summary>
+    public Task<AegisEngine> GetEngineAsync(string tenantId, CancellationToken cancellationToken = default)
     {
         var lazy = _engines.GetOrAdd(tenantId, id => new Lazy<Task<AegisEngine>>(() => BuildAsync(id, cancellationToken)));
         return lazy.Value;
