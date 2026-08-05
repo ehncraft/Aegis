@@ -61,6 +61,17 @@ public class SqlPolicyProviderTests
     };
 
     [Fact]
+    public void Create_SingleArgOverload_ReturnsAProvider()
+    {
+        var options = Options();
+        options.ConnectionString = "Server=.;Database=Test;Integrated Security=true;";
+
+        var provider = SqlPolicyProvider.Create(options);
+
+        Assert.NotNull(provider);
+    }
+
+    [Fact]
     public async Task LoadPoliciesAsync_ParsesYamlBodyIntoResourcePolicyAsync()
     {
         var executor = new FakeSqlQueryExecutor(

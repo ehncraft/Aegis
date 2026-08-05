@@ -56,6 +56,17 @@ public class CedarSqlPolicyProviderTests
     };
 
     [Fact]
+    public void Create_SingleArgOverload_ReturnsAProvider()
+    {
+        var options = Options();
+        options.ConnectionString = "Server=.;Database=Test;Integrated Security=true;";
+
+        var provider = CedarSqlPolicyProvider.Create(options);
+
+        Assert.NotNull(provider);
+    }
+
+    [Fact]
     public async Task LoadPoliciesAsync_ParsesCedarBodyIntoResourcePolicyAsync()
     {
         var executor = new FakeSqlQueryExecutor(

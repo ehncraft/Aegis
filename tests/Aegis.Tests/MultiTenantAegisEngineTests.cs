@@ -120,6 +120,79 @@ public class MultiTenantAegisEngineTests
     }
 
     [Fact]
+    public async Task InvalidateAsync_BuiltEngine_NextCallRebuildsFromFactoryAsync()
+    {
+        var buildCount = 0;
+        var registry = new MultiTenantAegisEngine(_ =>
+        {
+            buildCount++;
+            return AegisEngine.FromPolicies([AllowFinancePolicy()]);
+        });
+        var principal = AegisPrincipal.Create("alice", roles: ["Finance"]);
+        var resource = AegisResource.Create("invoices", "INV-1");
+        await registry.AuthorizeAsync("tenant-a", principal, resource, "view");
+        Assert.Equal(1, buildCount);
+
+        await registry.InvalidateAsync("tenant-a");
+        await registry.AuthorizeAsync("tenant-a", principal, resource, "view");
+
+        Assert.Equal(2, buildCount);
+    }
+
+    [Fact]
+    public async Task InvalidateAsync_NextCallReflectsAnUpdatedPolicySetAsync()
+    {
+        // The actual scenario InvalidateAsync exists for: a tenant edits its own policy (e.g.
+        // through an admin API backed by CedarSqlPolicyProvider) after its engine was already
+        // cached -- the next authorization check must see the edit, not the stale cached engine.
+        var useUpdatedPolicy = false;
+        var registry = new MultiTenantAegisEngine(_ => AegisEngine.FromPolicies(
+            useUpdatedPolicy ? [AllowAdminOnlyPolicy()] : [AllowFinancePolicy()]));
+        var principal = AegisPrincipal.Create("alice", roles: ["Finance"]);
+        var resource = AegisResource.Create("invoices", "INV-1");
+        var beforeEdit = await registry.AuthorizeAsync("tenant-a", principal, resource, "view");
+        Assert.True(beforeEdit.Allowed);
+
+        useUpdatedPolicy = true;
+        await registry.InvalidateAsync("tenant-a");
+        var afterEdit = await registry.AuthorizeAsync("tenant-a", principal, resource, "view");
+
+        Assert.False(afterEdit.Allowed);
+    }
+
+    [Fact]
+    public async Task InvalidateAsync_TenantNeverBuilt_DoesNotThrowAsync()
+    {
+        var registry = new MultiTenantAegisEngine(_ => AegisEngine.FromPolicies([AllowFinancePolicy()]));
+
+        var exception = await Record.ExceptionAsync(() => registry.InvalidateAsync("never-requested"));
+
+        Assert.Null(exception);
+    }
+
+    [Fact]
+    public async Task InvalidateAsync_DoesNotAffectOtherTenantsCachedEngineAsync()
+    {
+        var buildCounts = new Dictionary<string, int>();
+        var registry = new MultiTenantAegisEngine(tenantId =>
+        {
+            buildCounts[tenantId] = buildCounts.GetValueOrDefault(tenantId) + 1;
+            return AegisEngine.FromPolicies([AllowFinancePolicy()]);
+        });
+        var principal = AegisPrincipal.Create("alice", roles: ["Finance"]);
+        var resource = AegisResource.Create("invoices", "INV-1");
+        await registry.AuthorizeAsync("acme", principal, resource, "view");
+        await registry.AuthorizeAsync("beta", principal, resource, "view");
+
+        await registry.InvalidateAsync("acme");
+        await registry.AuthorizeAsync("acme", principal, resource, "view");
+        await registry.AuthorizeAsync("beta", principal, resource, "view");
+
+        Assert.Equal(2, buildCounts["acme"]);
+        Assert.Equal(1, buildCounts["beta"]);
+    }
+
+    [Fact]
     public async Task DisposeAsync_DisposesBuiltEnginesAsync()
     {
         var registry = new MultiTenantAegisEngine(_ =>
