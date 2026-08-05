@@ -2,8 +2,14 @@ using Microsoft.Data.SqlClient;
 
 namespace Aegis.Sql;
 
-/// <summary>Real <see cref="ISqlQueryExecutor"/> backed by Microsoft.Data.SqlClient.</summary>
-public sealed class SqlServerQueryExecutor(string connectionString) : ISqlQueryExecutor
+/// <summary>Constructs the real, ADO.NET-backed <see cref="ISqlQueryExecutor"/> -- the
+/// implementation itself is internal; callers only ever see it through the interface.</summary>
+public static class SqlServerQueryExecutor
+{
+    public static ISqlQueryExecutor Create(string connectionString) => new SqlServerQueryExecutorImpl(connectionString);
+}
+
+internal sealed class SqlServerQueryExecutorImpl(string connectionString) : ISqlQueryExecutor
 {
     public async Task<IReadOnlyList<IReadOnlyDictionary<string, object?>>> QueryAsync(
         string commandText,

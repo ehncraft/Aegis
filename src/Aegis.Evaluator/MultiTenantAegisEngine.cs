@@ -64,6 +64,35 @@ public sealed class MultiTenantAegisEngine : IAsyncDisposable
         return await engine.AuthorizeAsync(claimsPrincipal, mapper, resource, action, cancellationToken);
     }
 
+    /// <summary>
+    /// Evicts <paramref name="tenantId"/>'s cached engine (if any built), so the next
+    /// <see cref="AuthorizeAsync(string, AegisPrincipal, AegisResource, string, CancellationToken)"/>
+    /// call rebuilds it from scratch via the engine factory. Needed whenever a tenant's
+    /// underlying policy source changes after their engine was already cached -- e.g. a
+    /// tenant-authored Cedar policy edited through an admin API (see <c>Aegis.Sql</c>'s
+    /// <c>CedarSqlPolicyProvider</c>) -- since this class otherwise caches forever once built,
+    /// with no expiry of its own. Removal from the cache is immediate either way; if a build
+    /// was still in flight, its <see cref="Task"/> isn't cancelled or disposed here -- it's
+    /// simply no longer referenced once removed, and the next call already sees an empty slot
+    /// and rebuilds fresh regardless.
+    /// </summary>
+    public async Task InvalidateAsync(string tenantId)
+    {
+        if (!_engines.TryRemove(tenantId, out var lazy) || !lazy.IsValueCreated)
+        {
+            return;
+        }
+
+        try
+        {
+            (await lazy.Value).Dispose();
+        }
+        catch
+        {
+            // Never finished building -- nothing to dispose.
+        }
+    }
+
     public async ValueTask DisposeAsync()
     {
         foreach (var lazy in _engines.Values)

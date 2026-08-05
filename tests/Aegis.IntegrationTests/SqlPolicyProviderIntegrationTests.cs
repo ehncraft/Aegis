@@ -50,7 +50,7 @@ public sealed class SqlPolicyProviderIntegrationTests : IAsyncLifetime
         await ExecuteNonQueryAsync(
             $"INSERT INTO AegisPolicies (ResourceName, PolicyYaml) VALUES ('loan_applications', N'{yaml.Replace("'", "''")}')");
 
-        var provider = new SqlPolicyProvider(Options());
+        var provider = SqlPolicyProvider.Create(Options());
         var policies = await provider.LoadPoliciesAsync();
 
         var policy = Assert.Single(policies);
@@ -75,7 +75,7 @@ public sealed class SqlPolicyProviderIntegrationTests : IAsyncLifetime
             ');
             """);
 
-        var engine = await AegisEngine.CreateAsync(new SqlPolicyProvider(Options()));
+        var engine = await AegisEngine.CreateAsync(SqlPolicyProvider.Create(Options()));
         var principal = AegisPrincipal.Create("officer-1", roles: ["LoanOfficer"]);
         var resource = AegisResource.Create("loan_applications", "LN-1001");
 
@@ -88,7 +88,7 @@ public sealed class SqlPolicyProviderIntegrationTests : IAsyncLifetime
     public async Task LoadPoliciesAsync_MissingTable_ThrowsPolicyLoadExceptionAsync()
     {
         // No CREATE TABLE call -- the table genuinely doesn't exist.
-        var provider = new SqlPolicyProvider(Options());
+        var provider = SqlPolicyProvider.Create(Options());
 
         var ex = await Assert.ThrowsAsync<PolicyLoadException>(() => provider.LoadPoliciesAsync());
         Assert.Equal("sql:AegisPolicies", ex.PolicySource);

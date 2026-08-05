@@ -5,27 +5,27 @@ using Aegis.Audit;
 namespace Aegis.Sql;
 
 /// <summary>
-/// <see cref="IAuditLogStore"/> backed by an existing SQL Server table, per
-/// <see cref="SqlAuditLogStoreOptions"/>. <see cref="DecisionExplanation"/>
-/// is stored as JSON text, the same shape the explain API already
-/// produces, alongside flat columns for the fields <see cref="AuditLogQuery"/>
-/// filters on.
+/// Constructs an <see cref="IAuditLogStore"/> backed by an existing SQL Server table, per
+/// <see cref="SqlAuditLogStoreOptions"/> -- the implementation itself is internal; callers only
+/// ever see it through the interface.
 /// </summary>
-public sealed class SqlAuditLogStore : IAuditLogStore
+public static class SqlAuditLogStore
 {
-    private readonly SqlAuditLogStoreOptions _options;
-    private readonly ISqlQueryExecutor _executor;
+    public static IAuditLogStore Create(SqlAuditLogStoreOptions options) =>
+        new SqlAuditLogStoreImpl(options, SqlServerQueryExecutor.Create(options.ConnectionString));
 
-    public SqlAuditLogStore(SqlAuditLogStoreOptions options)
-        : this(options, new SqlServerQueryExecutor(options.ConnectionString))
-    {
-    }
+    public static IAuditLogStore Create(SqlAuditLogStoreOptions options, ISqlQueryExecutor executor) =>
+        new SqlAuditLogStoreImpl(options, executor);
+}
 
-    public SqlAuditLogStore(SqlAuditLogStoreOptions options, ISqlQueryExecutor executor)
-    {
-        _options = options;
-        _executor = executor;
-    }
+/// <summary>
+/// <see cref="DecisionExplanation"/> is stored as JSON text, the same shape the explain API
+/// already produces, alongside flat columns for the fields <see cref="AuditLogQuery"/> filters on.
+/// </summary>
+internal sealed class SqlAuditLogStoreImpl(SqlAuditLogStoreOptions options, ISqlQueryExecutor executor) : IAuditLogStore
+{
+    private readonly SqlAuditLogStoreOptions _options = options;
+    private readonly ISqlQueryExecutor _executor = executor;
 
     public async Task RecordAsync(AuditLogEntry entry, CancellationToken cancellationToken = default)
     {

@@ -33,6 +33,17 @@ public static partial class SqlIdentifier
         return $"[{identifier}]";
     }
 
+    /// <summary>
+    /// Same whitelist validation as <see cref="Quote(string)"/>, applied to
+    /// <paramref name="schema"/> and <paramref name="table"/> independently, then composed as
+    /// <c>[schema].[table]</c> -- for deployments that isolate tenants via a separate schema
+    /// per tenant (e.g. <c>tenant_123.CedarPolicies</c>) rather than a shared table filtered by
+    /// a tenant-id column. <paramref name="schema"/> <c>null</c> or empty returns just
+    /// <c>[table]</c>, identical to <see cref="Quote(string)"/>.
+    /// </summary>
+    public static string Quote(string? schema, string table) =>
+        string.IsNullOrEmpty(schema) ? Quote(table) : $"{Quote(schema)}.{Quote(table)}";
+
     [GeneratedRegex("^[A-Za-z_][A-Za-z0-9_]*$")]
     private static partial Regex SafeIdentifierPattern();
 }

@@ -51,7 +51,7 @@ public class SqlAuditLogStoreTests
     public async Task RecordAsync_InsertsWithParameterizedValuesAsync()
     {
         var executor = new FakeSqlQueryExecutor();
-        var store = new SqlAuditLogStore(Options(), executor);
+        var store = SqlAuditLogStore.Create(Options(), executor);
 
         await store.RecordAsync(Entry());
 
@@ -66,7 +66,7 @@ public class SqlAuditLogStoreTests
     public async Task RecordAsync_NoTenantId_WritesEmptyStringTenantAsync()
     {
         var executor = new FakeSqlQueryExecutor();
-        var store = new SqlAuditLogStore(Options(), executor);
+        var store = SqlAuditLogStore.Create(Options(), executor);
 
         await store.RecordAsync(Entry());
 
@@ -79,7 +79,7 @@ public class SqlAuditLogStoreTests
         var options = Options();
         options.TenantId = "acme-sacco";
         var executor = new FakeSqlQueryExecutor();
-        var store = new SqlAuditLogStore(options, executor);
+        var store = SqlAuditLogStore.Create(options, executor);
 
         await store.RecordAsync(Entry());
 
@@ -90,7 +90,7 @@ public class SqlAuditLogStoreTests
     public async Task QueryAsync_NoFilters_DoesNotAddWhereClauseAsync()
     {
         var executor = new FakeSqlQueryExecutor([]);
-        var store = new SqlAuditLogStore(Options(), executor);
+        var store = SqlAuditLogStore.Create(Options(), executor);
 
         await store.QueryAsync(new AuditLogQuery());
 
@@ -103,7 +103,7 @@ public class SqlAuditLogStoreTests
         var options = Options();
         options.TenantId = "acme-sacco";
         var executor = new FakeSqlQueryExecutor([]);
-        var store = new SqlAuditLogStore(options, executor);
+        var store = SqlAuditLogStore.Create(options, executor);
 
         await store.QueryAsync(new AuditLogQuery());
 
@@ -116,7 +116,7 @@ public class SqlAuditLogStoreTests
     public async Task QueryAsync_FiltersCombineWithAndAsync()
     {
         var executor = new FakeSqlQueryExecutor([]);
-        var store = new SqlAuditLogStore(Options(), executor);
+        var store = SqlAuditLogStore.Create(Options(), executor);
 
         await store.QueryAsync(new AuditLogQuery { PrincipalId = "alice", Allowed = false });
 
@@ -132,7 +132,7 @@ public class SqlAuditLogStoreTests
     public async Task QueryAsync_FiltersByResourceKindAndResourceIdAsync()
     {
         var executor = new FakeSqlQueryExecutor([]);
-        var store = new SqlAuditLogStore(Options(), executor);
+        var store = SqlAuditLogStore.Create(Options(), executor);
 
         await store.QueryAsync(new AuditLogQuery { ResourceKind = "invoices", ResourceId = "INV-1" });
 
@@ -147,7 +147,7 @@ public class SqlAuditLogStoreTests
     public async Task QueryAsync_FiltersByActionAsync()
     {
         var executor = new FakeSqlQueryExecutor([]);
-        var store = new SqlAuditLogStore(Options(), executor);
+        var store = SqlAuditLogStore.Create(Options(), executor);
 
         await store.QueryAsync(new AuditLogQuery { Action = "approve" });
 
@@ -160,7 +160,7 @@ public class SqlAuditLogStoreTests
     public async Task QueryAsync_FiltersByFromAndToAsync()
     {
         var executor = new FakeSqlQueryExecutor([]);
-        var store = new SqlAuditLogStore(Options(), executor);
+        var store = SqlAuditLogStore.Create(Options(), executor);
         var from = DateTimeOffset.UtcNow.AddDays(-1);
         var to = DateTimeOffset.UtcNow;
 
@@ -177,7 +177,7 @@ public class SqlAuditLogStoreTests
     public async Task QueryAsync_PassesLimitAsync()
     {
         var executor = new FakeSqlQueryExecutor([]);
-        var store = new SqlAuditLogStore(Options(), executor);
+        var store = SqlAuditLogStore.Create(Options(), executor);
 
         await store.QueryAsync(new AuditLogQuery { Limit = 5 });
 
@@ -201,7 +201,7 @@ public class SqlAuditLogStoreTests
                     ["Timestamp"] = DateTime.UtcNow,
                 },
             ]);
-        var store = new SqlAuditLogStore(Options(), executor);
+        var store = SqlAuditLogStore.Create(Options(), executor);
 
         var results = await store.QueryAsync(new AuditLogQuery());
 

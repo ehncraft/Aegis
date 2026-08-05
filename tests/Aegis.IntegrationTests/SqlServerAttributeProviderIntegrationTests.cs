@@ -48,7 +48,7 @@ public sealed class SqlServerAttributeProviderIntegrationTests : IAsyncLifetime
         await command.ExecuteNonQueryAsync();
     }
 
-    private SqlServerAttributeProvider CreateProvider() => new(new SqlAttributeProviderOptions
+    private IAttributeProvider CreateProvider() => SqlServerAttributeProvider.Create(new SqlAttributeProviderOptions
     {
         ConnectionString = _container.GetConnectionString(),
         PrincipalTable = "Users",
