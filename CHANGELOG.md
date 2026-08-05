@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.1](https://github.com/ehncraft/Aegis/compare/v0.13.0...v0.13.1) (2026-07-29)
+
+
+### Bug Fixes
+
+* pack and publish Aegis.Cedar in the release workflow ([#108](https://github.com/ehncraft/Aegis/issues/108)) ([6c21693](https://github.com/ehncraft/Aegis/commit/6c216937b8a64dc6f81a3176ed7842a1e898cd52))
+
 ## [0.13.0](https://github.com/ehncraft/Aegis/compare/v0.12.0...v0.13.0) (2026-07-29)
 
 
