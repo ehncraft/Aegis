@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.0](https://github.com/ehncraft/Aegis/compare/v0.15.0...v0.16.0) (2026-11-04)
+
+
+### Features
+
+* expose explicit-forbid flag on DecisionExplanation ([#133](https://github.com/ehncraft/Aegis/issues/133)) ([829b5c6](https://github.com/ehncraft/Aegis/commit/829b5c6cac7d8324d109c68b4527bf95dfa91f3a))
+
 ## [0.15.0](https://github.com/ehncraft/Aegis/compare/v0.14.0...v0.15.0) (2026-08-05)
 
 
