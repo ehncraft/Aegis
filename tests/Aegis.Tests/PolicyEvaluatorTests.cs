@@ -412,6 +412,7 @@ public class PolicyEvaluatorTests
 
         Assert.False(decision.Allowed);
         Assert.Equal("Denied by forbid rule", decision.Explanation.Reason);
+        Assert.True(decision.Explanation.Forbidden);
     }
 
     [Fact]
@@ -455,6 +456,7 @@ public class PolicyEvaluatorTests
 
         Assert.True(decision.Allowed);
         Assert.Null(decision.Explanation.Reason);
+        Assert.False(decision.Explanation.Forbidden);
     }
 
     [Fact]
@@ -468,6 +470,7 @@ public class PolicyEvaluatorTests
 
         Assert.False(decision.Allowed);
         Assert.Equal("No allow condition was satisfied", decision.Explanation.Reason);
+        Assert.False(decision.Explanation.Forbidden);
     }
 
     [Fact]

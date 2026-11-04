@@ -14,4 +14,6 @@ public sealed class DecisionExplanation
 
     /// <summary>Set when no policy or rule matched at all, e.g. "no policy for resource 'invoices'".</summary>
     public string? Reason { get; init; }
+
+    public bool Forbidden { get; init; }
 }

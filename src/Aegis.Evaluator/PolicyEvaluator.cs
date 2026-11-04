@@ -140,6 +140,7 @@ public sealed class PolicyEvaluator
             Reason = effectAllowed
                 ? null
                 : forbidden ? "Denied by forbid rule" : "No allow condition was satisfied",
+            Forbidden = forbidden,
         };
 
         return effectAllowed ? AuthorizationDecision.Allow(explanation) : AuthorizationDecision.Deny(explanation);
