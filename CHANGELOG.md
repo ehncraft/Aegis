@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.17.0](https://github.com/ehncraft/Aegis/compare/v0.16.0...v0.17.0) (2026-11-07)
+
+
+### Features
+
+* let CedarLoadOptions seed an external action vocabulary ([3927f9b](https://github.com/ehncraft/Aegis/commit/3927f9bac71d11b82642bb537fb5dcda74e41ab8))
+* let CedarLoadOptions seed an external action vocabulary ([a4199c5](https://github.com/ehncraft/Aegis/commit/a4199c54422d39607d5b229cd81cabea61feeb05))
+
 ## [0.16.0](https://github.com/ehncraft/Aegis/compare/v0.15.0...v0.16.0) (2026-11-04)
 
 
