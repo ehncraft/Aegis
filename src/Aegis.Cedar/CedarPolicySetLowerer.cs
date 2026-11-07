@@ -52,7 +52,7 @@ internal static class CedarPolicySetLowerer
         }
 
         var resourceExpanded = ExpandResourceScopes(resolved);
-        var vocabularyByKind = BuildActionVocabulary(resourceExpanded);
+        var vocabularyByKind = BuildActionVocabulary(resourceExpanded, options);
         var flattened = ExpandActionScopes(resourceExpanded, vocabularyByKind);
 
         return BuildResourcePolicies(flattened);
@@ -105,13 +105,24 @@ internal static class CedarPolicySetLowerer
 
     /// <summary>
     /// Pass 2: the union of every concrete action name any policy in this
-    /// batch names for a given resource kind -- what an <c>action</c>-unconstrained
-    /// policy for that same resource kind expands against.
+    /// batch names for a given resource kind, seeded with
+    /// <see cref="CedarLoadOptions.KnownActionVocabulary"/> when supplied --
+    /// what an <c>action</c>-unconstrained policy for that same resource kind
+    /// expands against.
     /// </summary>
     private static Dictionary<string, HashSet<string>> BuildActionVocabulary(
-        IReadOnlyList<(string ResourceKind, IReadOnlyList<string>? ActionNames, CedarEffect Effect, CedarExpr Condition)> resolved)
+        IReadOnlyList<(string ResourceKind, IReadOnlyList<string>? ActionNames, CedarEffect Effect, CedarExpr Condition)> resolved,
+        CedarLoadOptions options)
     {
         var vocabularyByKind = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        if (options.KnownActionVocabulary is not null)
+        {
+            foreach (var (resourceKind, actionNames) in options.KnownActionVocabulary)
+            {
+                vocabularyByKind[resourceKind] = new HashSet<string>(actionNames, StringComparer.Ordinal);
+            }
+        }
+
         foreach (var clause in resolved)
         {
             if (clause.ActionNames is null)

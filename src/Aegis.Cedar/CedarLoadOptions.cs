@@ -31,6 +31,15 @@ public sealed class CedarLoadOptions
     public RelationshipGraph? ActionGroups { get; init; }
 
     /// <summary>
+    /// Extra action vocabulary by resource kind, consulted alongside the
+    /// batch's own concrete action names when resolving a bare <c>action</c>
+    /// scope -- lets a caller lower a single policy in isolation without
+    /// needing a sibling policy in the same batch to establish the vocabulary.
+    /// <c>null</c> (default) relies solely on the batch itself.
+    /// </summary>
+    public IReadOnlyDictionary<string, IReadOnlySet<string>>? KnownActionVocabulary { get; init; }
+
+    /// <summary>
     /// The entity type name Aegis principals are treated as for
     /// <c>principal is X</c>/<c>principal is X in Y</c> checks and for the
     /// descendant side of any <c>in</c> check this lowering emits -- must

@@ -207,6 +207,60 @@ public class CedarPolicySetLowererTests
     }
 
     [Fact]
+    public void Lower_ActionAnyScope_WithKnownActionVocabulary_ResolvesWithoutSiblingPolicies()
+    {
+        var options = new CedarLoadOptions
+        {
+            KnownActionVocabulary = new Dictionary<string, IReadOnlySet<string>>
+            {
+                ["documents"] = new HashSet<string> { "view", "edit" },
+            },
+        };
+
+        var policies = Lower("permit(principal in Group::\"admins\", action, resource is documents);", options);
+
+        var policy = Assert.Single(policies);
+        Assert.Equal(["edit", "view"], policy.Actions.Keys.OrderBy(k => k));
+    }
+
+    [Fact]
+    public void Lower_ActionAnyScope_WithKnownActionVocabularyAndSiblingVocabulary_UnionsBoth()
+    {
+        var options = new CedarLoadOptions
+        {
+            KnownActionVocabulary = new Dictionary<string, IReadOnlySet<string>>
+            {
+                ["documents"] = new HashSet<string> { "view" },
+            },
+        };
+
+        var policies = Lower(
+            """
+            permit(principal, action == Action::"edit", resource is documents);
+            permit(principal in Group::"admins", action, resource is documents);
+            """,
+            options);
+
+        var policy = Assert.Single(policies);
+        Assert.Equal(["edit", "view"], policy.Actions.Keys.OrderBy(k => k));
+    }
+
+    [Fact]
+    public void Lower_ActionAnyScope_KnownActionVocabularyForDifferentResourceKind_StillThrows()
+    {
+        var options = new CedarLoadOptions
+        {
+            KnownActionVocabulary = new Dictionary<string, IReadOnlySet<string>>
+            {
+                ["folders"] = new HashSet<string> { "view" },
+            },
+        };
+
+        Assert.Throws<CedarLoweringException>(
+            () => Lower("permit(principal in Group::\"admins\", action, resource is documents);", options));
+    }
+
+    [Fact]
     public void Lower_ActionInSetScope_DispatchesToEachNamedAction()
     {
         var policies = Lower(
